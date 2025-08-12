@@ -2,6 +2,7 @@
 import io
 import requests
 import streamlit as st
+import streamlit.components.v1 as components  # 追加
 from dotenv import load_dotenv
 import os
 from typing import Optional
@@ -220,8 +221,90 @@ def df_weight_series(user_id: str, start_d: date, end_d: date) -> pd.DataFrame:
     rng = pd.date_range(start=start_d, end=end_d, freq="D")
     return pd.DataFrame({"d": rng.date, "weight_kg": [latest]*len(rng)})
 
+# ====== PWA対応のメタタグを追加する関数 ======
+def add_pwa_meta():
+    """PWA対応のメタタグを動的に追加"""
+    # アイコンのURLを実際のアイコンファイルのURLに置き換えてください
+    # 例: GitHub Pages、Cloudflare、または他のCDNにアップロードしたアイコンのURL
+    icon_base_url = "https://your-domain.com"  # ← ここを実際のドメインに変更
+    
+    components.html(f"""
+    <script>
+    // Apple Touch Icon (iOS用)
+    var appleTouchIcon = document.createElement('link');
+    appleTouchIcon.rel = 'apple-touch-icon';
+    appleTouchIcon.sizes = '180x180';
+    appleTouchIcon.href = '{icon_base_url}/icon-180x180.png';
+    document.head.appendChild(appleTouchIcon);
+    
+    // favicon (一般的なブラウザ用)
+    var favicon32 = document.createElement('link');
+    favicon32.rel = 'icon';
+    favicon32.type = 'image/png';
+    favicon32.sizes = '32x32';
+    favicon32.href = '{icon_base_url}/icon-32x32.png';
+    document.head.appendChild(favicon32);
+    
+    var favicon16 = document.createElement('link');
+    favicon16.rel = 'icon';
+    favicon16.type = 'image/png';
+    favicon16.sizes = '16x16';
+    favicon16.href = '{icon_base_url}/icon-16x16.png';
+    document.head.appendChild(favicon16);
+    
+    // Web App Manifest (Android用)
+    var manifest = document.createElement('link');
+    manifest.rel = 'manifest';
+    manifest.href = 'data:application/json;base64,' + btoa(JSON.stringify({{
+        "name": "FitAI - ヘルスケア&運動コーチングAI",
+        "short_name": "FitAI",
+        "description": "AIによるヘルスケアと運動コーチングアプリ",
+        "icons": [
+            {{
+                "src": "{icon_base_url}/icon-192x192.png",
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any maskable"
+            }},
+            {{
+                "src": "{icon_base_url}/icon-512x512.png", 
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any maskable"
+            }}
+        ],
+        "theme_color": "#0066cc",
+        "background_color": "#ffffff",
+        "display": "standalone",
+        "start_url": "/",
+        "scope": "/"
+    }}));
+    document.head.appendChild(manifest);
+    
+    // Apple用の追加メタタグ
+    var appleWebAppCapable = document.createElement('meta');
+    appleWebAppCapable.name = 'apple-mobile-web-app-capable';
+    appleWebAppCapable.content = 'yes';
+    document.head.appendChild(appleWebAppCapable);
+    
+    var appleWebAppStatusBar = document.createElement('meta');
+    appleWebAppStatusBar.name = 'apple-mobile-web-app-status-bar-style';
+    appleWebAppStatusBar.content = 'default';
+    document.head.appendChild(appleWebAppStatusBar);
+    
+    var appleWebAppTitle = document.createElement('meta');
+    appleWebAppTitle.name = 'apple-mobile-web-app-title';
+    appleWebAppTitle.content = 'FitAI';
+    document.head.appendChild(appleWebAppTitle);
+    </script>
+    """, height=0)
+
 # ====== ページ設定 ======
 st.set_page_config(page_title="FitAI", page_icon="icon.png", layout="centered")
+
+# PWA用のメタタグを追加（ページ設定の直後に実行）
+add_pwa_meta()
+
 st.markdown("<h1 style='text-align: center;'>FitAI</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; font-size:20px;'>ヘルスケア&運動コーチングAI</p>", unsafe_allow_html=True)
 
@@ -393,7 +476,7 @@ def _render_page_meal():
                 t = st.time_input("時刻", value=default_time, key=f"time_{i}")
 
             file = st.file_uploader("画像を選択（jpg/png/webp）", type=["jpg","jpeg","png","webp"], key=f"uploader_{i}")
-            memo = st.text_input("メモ（任意）", key=f"memo_{i}", placeholder="例）外食。唐揚げ定食のご飯少なめ など")
+            memo = st.text_input("メモ（任意）", key=f"memo_{i}", placeholder="例）ご飯大盛り など")
 
             if st.button("この食事を登録する", key=f"submit_{i}", use_container_width=True, disabled=not file):
                 when_iso = iso_from_date_time(d, t)
@@ -419,7 +502,7 @@ def _render_page_meal():
 def _render_page_coaching():
     st.header("AIコーチからアドバイスを受ける")
     st.write(
-        "直近7日間の Fitbit データと食事記録、ユーザー情報（年齢/性別/身長/現体重/目標体重/運動目的/既往歴/服薬/アレルギー/喫煙・飲酒頻度）を含めて FitAI に依頼します。"
+        "直近7日間のデータを元にFitAIがあなたにアドバイスをします。"
     )
 
     show_prompt = st.checkbox("送信プロンプトを表示", value=False)
