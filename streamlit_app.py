@@ -62,33 +62,43 @@ def render_dashboard_page(current_user_id: str = "demo"):
 
     uid = current_user_id
     with st.spinner("BigQuery からデータ取得中..."):
+        df_cal = df_daily_calorie(uid, start_d, end_d)
         df_fb = df_fitbit_daily(uid, start_d, end_d)
         df_w  = df_weight_series(uid, start_d, end_d)
 
-    st.subheader("消費カロリー（calories_total）")
+    st.subheader("摂取カロリー")
     if not df_fb.empty:
         # 日本語日付表示に変更
         df_fb_display = df_fb.copy()
         df_fb_display['日付'] = pd.to_datetime(df_fb_display['d']).dt.strftime('%m/%d')
-        st.line_chart(df_fb_display.set_index("日付")["calories_total"])
+        st.line_chart(df_fb_display.set_index("日付")["摂取カロリー"])
+    else:
+        st.info("データなし")
+
+    st.subheader("消費カロリー")
+    if not df_fb.empty:
+        # 日本語日付表示に変更
+        df_cal_display = df_cal.copy()
+        df_cal_display['日付'] = pd.to_datetime(df_cal_display['d']).dt.strftime('%m/%d')
+        st.line_chart(df_cal_display.set_index("日付")["消費カロリー"])
     else:
         st.info("データなし")
     
-    st.subheader("歩数（steps_total）")
+    st.subheader("歩数")
     if not df_fb.empty:
         # 日本語日付表示に変更
         df_fb_display = df_fb.copy()
         df_fb_display['日付'] = pd.to_datetime(df_fb_display['d']).dt.strftime('%m/%d')
-        st.line_chart(df_fb_display.set_index("日付")["steps_total"])
+        st.line_chart(df_fb_display.set_index("日付")["歩数"])
     else:
         st.info("データなし")
     
-    st.subheader("体重（weight_kg）")
+    st.subheader("体重")
     if not df_w.empty and not df_w["weight_kg"].isna().all():
         # 日本語日付表示に変更
         df_w_display = df_w.copy()
         df_w_display['日付'] = pd.to_datetime(df_w_display['d']).dt.strftime('%m/%d')
-        st.line_chart(df_w_display.set_index("日付")["weight_kg"])
+        st.line_chart(df_w_display.set_index("日付")["kg"])
     else:
         st.info("データなし")
     return
