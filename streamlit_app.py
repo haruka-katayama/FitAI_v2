@@ -196,7 +196,7 @@ def df_weight_series(user_id: str, start_d: date, end_d: date) -> pd.DataFrame:
     return pd.DataFrame({"d": rng.date, "weight_kg": [latest]*len(rng)})
 
 # ====== ページ設定 ======
-st.set_page_config(page_title="Fitline UI", page_icon="🍱", layout="centered")
+st.set_page_config(page_title="FitAI", page_icon="icon.png", layout="centered")
 st.markdown("<h1 style='text-align: center;'>FitAI</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; font-size:20px;'>ヘルスケア&運動コーチングAI</p>", unsafe_allow_html=True)
 
