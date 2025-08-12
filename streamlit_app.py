@@ -65,24 +65,30 @@ def render_dashboard_page(current_user_id: str = "demo"):
         df_fb = df_fitbit_daily(uid, start_d, end_d)
         df_w  = df_weight_series(uid, start_d, end_d)
 
-        st.subheader("消費カロリー（calories_total）")
+    st.subheader("消費カロリー（calories_total）")
     if not df_fb.empty:
-        # 修正: セミコロンで終わらせて戻り値を抑制
-        st.line_chart(df_fb.set_index("d")["calories_total"]);
+        # 日本語日付表示に変更
+        df_fb_display = df_fb.copy()
+        df_fb_display['日付'] = pd.to_datetime(df_fb_display['d']).dt.strftime('%m/%d')
+        st.line_chart(df_fb_display.set_index("日付")["calories_total"])
     else:
         st.info("データなし")
     
     st.subheader("歩数（steps_total）")
     if not df_fb.empty:
-        # 修正: セミコロンで終わらせて戻り値を抑制
-        st.line_chart(df_fb.set_index("d")["steps_total"]);
+        # 日本語日付表示に変更
+        df_fb_display = df_fb.copy()
+        df_fb_display['日付'] = pd.to_datetime(df_fb_display['d']).dt.strftime('%m/%d')
+        st.line_chart(df_fb_display.set_index("日付")["steps_total"])
     else:
         st.info("データなし")
     
     st.subheader("体重（weight_kg）")
     if not df_w.empty and not df_w["weight_kg"].isna().all():
-        # 修正: セミコロンで終わらせて戻り値を抑制
-        st.line_chart(df_w.set_index("d")["weight_kg"]);
+        # 日本語日付表示に変更
+        df_w_display = df_w.copy()
+        df_w_display['日付'] = pd.to_datetime(df_w_display['d']).dt.strftime('%m/%d')
+        st.line_chart(df_w_display.set_index("日付")["weight_kg"])
     else:
         st.info("データなし")
     return
