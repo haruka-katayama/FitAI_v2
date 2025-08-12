@@ -71,7 +71,7 @@ def render_dashboard_page(current_user_id: str = "demo"):
         # 日本語日付表示に変更
         df_fb_display = df_fb.copy()
         df_fb_display['日付'] = pd.to_datetime(df_fb_display['d']).dt.strftime('%m/%d')
-        st.line_chart(df_fb_display.set_index("日付")["摂取カロリー"])
+        st.line_chart(df_fb_display.set_index("日付")["daily_kcal"])
     else:
         st.info("データなし")
 
@@ -80,7 +80,7 @@ def render_dashboard_page(current_user_id: str = "demo"):
         # 日本語日付表示に変更
         df_cal_display = df_cal.copy()
         df_cal_display['日付'] = pd.to_datetime(df_cal_display['d']).dt.strftime('%m/%d')
-        st.line_chart(df_cal_display.set_index("日付")["消費カロリー"])
+        st.line_chart(df_cal_display.set_index("日付")["calories_total"])
     else:
         st.info("データなし")
     
@@ -89,7 +89,7 @@ def render_dashboard_page(current_user_id: str = "demo"):
         # 日本語日付表示に変更
         df_fb_display = df_fb.copy()
         df_fb_display['日付'] = pd.to_datetime(df_fb_display['d']).dt.strftime('%m/%d')
-        st.line_chart(df_fb_display.set_index("日付")["歩数"])
+        st.line_chart(df_fb_display.set_index("日付")["steps_total"])
     else:
         st.info("データなし")
     
@@ -98,7 +98,7 @@ def render_dashboard_page(current_user_id: str = "demo"):
         # 日本語日付表示に変更
         df_w_display = df_w.copy()
         df_w_display['日付'] = pd.to_datetime(df_w_display['d']).dt.strftime('%m/%d')
-        st.line_chart(df_w_display.set_index("日付")["kg"])
+        st.line_chart(df_w_display.set_index("日付")["weight_kg"])
     else:
         st.info("データなし")
     return
