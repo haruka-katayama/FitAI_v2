@@ -118,6 +118,23 @@ def df_fitbit_daily(user_id: str, start_d: date, end_d: date) -> pd.DataFrame:
     )
     return get_bq().query(sql, job_config=job_config).to_dataframe()
 
+def df_daily_calorie(user_id: str, start_d: date, end_d: date) -> pd.DataFrame:
+    sql = """
+    SELECT DATE(when_date) AS d, daily_kcal
+    FROM `peak-empire-396108.health_raw.daily_calorie_simple`
+    WHERE user_id = @uid
+      AND DATE(when_date) BETWEEN @s AND @e
+    ORDER BY d
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("uid","STRING", user_id),
+            bigquery.ScalarQueryParameter("s","DATE", start_d),
+            bigquery.ScalarQueryParameter("e","DATE", end_d),
+        ]
+    )
+    return get_bq().query(sql, job_config=job_config).to_dataframe()
+
 def df_weight_series(user_id: str, start_d: date, end_d: date) -> pd.DataFrame:
     """
     profiles に日付列が無い想定でも壊れないように設計：
