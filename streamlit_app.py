@@ -71,10 +71,10 @@ def render_dashboard_page(current_user_id: str = "demo"):
         df_display = df_calorie_diff.copy()
         df_display['日付'] = pd.to_datetime(df_display['date']).dt.strftime('%m/%d')
         
-        # consumption_calories と take_in_calories を同じグラフに表示
-        chart_data = df_display.set_index("日付")[["consumption_calories", "take_in_calories"]]
-        chart_data.columns = ["消費カロリー", "摂取カロリー"]
-        st.line_chart(chart_data)
+        # consumption_calories と take_in_calories を同じグラフに表示（色指定）
+        chart_data = df_display.set_index("日付")[["take_in_calories", "consumption_calories"]]
+        chart_data.columns = ["摂取カロリー", "消費カロリー"]
+        st.line_chart(chart_data, color=["#0066cc", "#cc0000"])  # 青、赤
     else:
         st.info("カロリーデータなし")
     
@@ -93,10 +93,10 @@ def render_dashboard_page(current_user_id: str = "demo"):
         
         st.text(change_text)
         
-        # 日本語日付表示に変更
+        # 日本語日付表示に変更（棒グラフに変更）
         df_weight_display = df_calorie_diff.copy()
         df_weight_display['日付'] = pd.to_datetime(df_weight_display['date']).dt.strftime('%m/%d')
-        st.line_chart(df_weight_display.set_index("日付")["weight_change_kg"])
+        st.bar_chart(df_weight_display.set_index("日付")["weight_change_kg"])
     else:
         st.info("体重変化データなし")
     
