@@ -62,36 +62,43 @@ def render_dashboard_page(current_user_id: str = "demo"):
 
     uid = current_user_id
     with st.spinner("BigQuery からデータ取得中..."):
-        df_cal = df_daily_calorie(uid, start_d, end_d)
-        df_fb = df_fitbit_daily(uid, start_d, end_d)
-        df_w  = df_weight_series(uid, start_d, end_d)
+        df_calorie_diff = df_calorie_difference_analysis(uid, start_d, end_d)
+        df_w = df_weight_series(uid, start_d, end_d)
 
-    st.subheader("消費カロリー")
-    if not df_fb.empty:
+    st.subheader("カロリー収支（消費・摂取カロリー）")
+    if not df_calorie_diff.empty:
         # 日本語日付表示に変更
-        df_fb_display = df_fb.copy()
-        df_fb_display['日付'] = pd.to_datetime(df_fb_display['d']).dt.strftime('%m/%d')
-        st.line_chart(df_fb_display.set_index("日付")["calories_total"])
+        df_display = df_calorie_diff.copy()
+        df_display['日付'] = pd.to_datetime(df_display['date']).dt.strftime('%m/%d')
+        
+        # consumption_calories と take_in_calories を同じグラフに表示
+        chart_data = df_display.set_index("日付")[["consumption_calories", "take_in_calories"]]
+        chart_data.columns = ["消費カロリー", "摂取カロリー"]
+        st.line_chart(chart_data)
     else:
-        st.info("データなし")
-
-    st.subheader("摂取カロリー")
-    if not df_cal.empty:
-        # 日本語日付表示に変更
-        df_cal_display = df_cal.copy()
-        df_cal_display['日付'] = pd.to_datetime(df_cal_display['d']).dt.strftime('%m/%d')
-        st.line_chart(df_cal_display.set_index("日付")["daily_kcal"])
-    else:
-        st.info("データなし")
+        st.info("カロリーデータなし")
     
-#    st.subheader("歩数")
-#    if not df_fb.empty:
-#        # 日本語日付表示に変更
-#        df_fb_display = df_fb.copy()
-#        df_fb_display['日付'] = pd.to_datetime(df_fb_display['d']).dt.strftime('%m/%d')
-#        st.line_chart(df_fb_display.set_index("日付")["steps_total"])
-#    else:
-#        st.info("データなし")
+    st.subheader("体重変化")
+    if not df_calorie_diff.empty and not df_calorie_diff["weight_change_kg"].isna().all():
+        # 体重変化の合計を計算
+        total_weight_change = df_calorie_diff["weight_change_kg"].sum()
+        
+        # 表示用テキスト作成
+        if total_weight_change > 0:
+            change_text = f"+{total_weight_change:.1f}kg増加しました。"
+        elif total_weight_change < 0:
+            change_text = f"{total_weight_change:.1f}kg減少しました。"
+        else:
+            change_text = "±0.0kg変化なしでした。"
+        
+        st.text(change_text)
+        
+        # 日本語日付表示に変更
+        df_weight_display = df_calorie_diff.copy()
+        df_weight_display['日付'] = pd.to_datetime(df_weight_display['date']).dt.strftime('%m/%d')
+        st.line_chart(df_weight_display.set_index("日付")["weight_change_kg"])
+    else:
+        st.info("体重変化データなし")
     
     st.subheader("体重")
     if not df_w.empty and not df_w["weight_kg"].isna().all():
@@ -100,7 +107,7 @@ def render_dashboard_page(current_user_id: str = "demo"):
         df_w_display['日付'] = pd.to_datetime(df_w_display['d']).dt.strftime('%m/%d')
         st.line_chart(df_w_display.set_index("日付")["weight_kg"])
     else:
-        st.info("データなし")
+        st.info("体重データなし")
     return
 
 # === BigQuery helpers ===
@@ -110,6 +117,24 @@ def get_bq():
     if _bq_client is None:
         _bq_client = bigquery.Client()
     return _bq_client
+
+def df_calorie_difference_analysis(user_id: str, start_d: date, end_d: date) -> pd.DataFrame:
+    """
+    calorie_difference_analysis テーブルからデータを取得
+    """
+    sql = """
+    SELECT date, consumption_calories, take_in_calories, weight_change_kg
+    FROM `peak-empire-396108.health_raw.calorie_difference_analysis`
+    WHERE DATE(date) BETWEEN @s AND @e
+    ORDER BY date
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("s","DATE", start_d),
+            bigquery.ScalarQueryParameter("e","DATE", end_d),
+        ]
+    )
+    return get_bq().query(sql, job_config=job_config).to_dataframe()
 
 def df_fitbit_daily(user_id: str, start_d: date, end_d: date) -> pd.DataFrame:
     sql = """
