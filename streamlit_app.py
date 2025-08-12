@@ -85,13 +85,13 @@ def render_dashboard_page(current_user_id: str = "demo"):
         
         # 表示用テキスト作成
         if total_weight_change > 0:
-            change_text = f"+{total_weight_change:.1f}kg増加しました。"
+            change_text = f"+{total_weight_change:.1f}kg増加しました。(理論値)"
         elif total_weight_change < 0:
-            change_text = f"{total_weight_change:.1f}kg減少しました。"
+            change_text = f"{total_weight_change:.1f}kg減少しました。(理論値)"
         else:
             change_text = "±0.0kg変化なしでした。"
         
-        st.text(change_text)
+        st.markdown(f"## {change_text}")
         
         # 日本語日付表示に変更（棒グラフに変更）
         df_weight_display = df_calorie_diff.copy()
