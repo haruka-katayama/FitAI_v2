@@ -9,7 +9,7 @@ from datetime import datetime, date, time, timedelta
 import pandas as pd
 from google.cloud import bigquery
 import builtins
-
+from zoneinfo import ZoneInfo
 
 # ====== .env を読む（UI入力はしない）======
 load_dotenv()  # .env を読む
@@ -364,7 +364,8 @@ def _render_page_meal():
             with c1:
                 d = st.date_input("日付", value=date.today(), key=f"date_{i}")
             with c2:
-                t = st.time_input("時刻", value=datetime.now().time().replace(second=0, microsecond=0), key=f"time_{i}")
+                default_time = datetime.now(ZoneInfo("Asia/Tokyo")).time().replace(second=0, microsecond=0)
+                t = st.time_input("時刻", value=default_time, key=f"time_{i}")
 
             file = st.file_uploader("画像を選択（jpg/png/webp）", type=["jpg","jpeg","png","webp"], key=f"uploader_{i}")
             memo = st.text_input("メモ（任意）", key=f"memo_{i}", placeholder="例）外食。唐揚げ定食のご飯少なめ など")
