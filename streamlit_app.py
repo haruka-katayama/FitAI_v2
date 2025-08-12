@@ -66,21 +66,21 @@ def render_dashboard_page(current_user_id: str = "demo"):
         df_fb = df_fitbit_daily(uid, start_d, end_d)
         df_w  = df_weight_series(uid, start_d, end_d)
 
-    st.subheader("摂取カロリー")
+    st.subheader("消費カロリー")
     if not df_fb.empty:
         # 日本語日付表示に変更
         df_fb_display = df_fb.copy()
         df_fb_display['日付'] = pd.to_datetime(df_fb_display['d']).dt.strftime('%m/%d')
-        st.line_chart(df_fb_display.set_index("日付")["daily_kcal"])
+        st.line_chart(df_fb_display.set_index("日付")["calories_total"])
     else:
         st.info("データなし")
 
-    st.subheader("消費カロリー")
-    if not df_fb.empty:
+    st.subheader("摂取カロリー")
+    if not df_cal.empty:
         # 日本語日付表示に変更
         df_cal_display = df_cal.copy()
         df_cal_display['日付'] = pd.to_datetime(df_cal_display['d']).dt.strftime('%m/%d')
-        st.line_chart(df_cal_display.set_index("日付")["calories_total"])
+        st.line_chart(df_cal_display.set_index("日付")["daily_kcal"])
     else:
         st.info("データなし")
     
