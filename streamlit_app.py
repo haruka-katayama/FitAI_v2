@@ -226,7 +226,7 @@ def add_pwa_meta():
     """PWA対応のメタタグを動的に追加"""
     # アイコンのURLを実際のアイコンファイルのURLに置き換えてください
     # 例: GitHub Pages、Cloudflare、または他のCDNにアップロードしたアイコンのURL
-    icon_base_url = "https://your-domain.com"  # ← ここを実際のドメインに変更
+    icon_base_url = "icon.png"  # ← ここを実際のドメインに変更
     
     components.html(f"""
     <script>
@@ -357,7 +357,7 @@ def run_weekly_coaching(show_prompt=False):
 # ① ユーザー情報ページ
 # =========================
 def _render_page_profile():
-    st.header("あなたの情報を入力してください")
+    st.header("あなたの情報を入力した後「保存する」をクリック")
     prof = get_profile()
 
     # 表示用⇔内部コードのマップ
@@ -458,7 +458,7 @@ def _render_page_profile():
 # =========================
 def _render_page_meal():
     st.header("食事の画像をアップロードしてください")
-    st.caption("※ 画像はサーバに保存せず、OpenAIに直接渡して要約テキストのみ保存します。")
+    st.caption("画像アップロード後「登録する」をクリック")
 
     labels = ["朝ごはん", "昼ごはん", "夜ごはん", "その他"]
     tabs = st.tabs(labels)
@@ -478,7 +478,7 @@ def _render_page_meal():
             file = st.file_uploader("画像を選択（jpg/png/webp）", type=["jpg","jpeg","png","webp"], key=f"uploader_{i}")
             memo = st.text_input("メモ（任意）", key=f"memo_{i}", placeholder="例）ご飯大盛り など")
 
-            if st.button("この食事を登録する", key=f"submit_{i}", use_container_width=True, disabled=not file):
+            if st.button("登録する", key=f"submit_{i}", use_container_width=True, disabled=not file):
                 when_iso = iso_from_date_time(d, t)
                 uploaded = upload_meal_image(when_iso, file.read(), file.name, file.type or "image/jpeg")
                 if uploaded:
