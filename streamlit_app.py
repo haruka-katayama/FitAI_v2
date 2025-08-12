@@ -91,7 +91,7 @@ def render_dashboard_page(current_user_id: str = "demo"):
         else:
             change_text = "±0.0kg変化なしでした。"
         
-        st.markdown(f"## {change_text}")
+        st.markdown(f"### {change_text}")
         
         # 日本語日付表示に変更（棒グラフに変更）
         df_weight_display = df_calorie_diff.copy()
