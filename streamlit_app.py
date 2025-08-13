@@ -305,8 +305,10 @@ st.set_page_config(page_title="FitAI", page_icon="icon.png", layout="centered")
 # PWA用のメタタグを追加（ページ設定の直後に実行）
 add_pwa_meta()
 
-st.markdown("<h1 style='text-align: center;'>FitAI</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-size:20px;'>ヘルスケア&運動コーチングAI</p>", unsafe_allow_html=True)
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.image("logo.png", width=300)
+st.markdown("<p style='text-align: center; font-size:20px;'>FitAIは、あなたの体のデータ・生活習慣・目標に合わせて、科学的根拠に基づいた最適な行動プランを提案するパーソナルヘルスコーチAIです。</p>", unsafe_allow_html=True)
 
 # ====== 小ヘルパ ======
 def get_profile() -> dict:
@@ -357,7 +359,9 @@ def run_weekly_coaching(show_prompt=False):
 # ① ユーザー情報ページ
 # =========================
 def _render_page_profile():
-    st.header("あなたの情報を入力した後「保存する」をクリック")
+    st.header("あなたの情報を入力してください")
+    st.write("入力後「保存する」をクリック")
+    st.write("※入力は1回だけでOK。変更がある場合のみ、再入力してください。")
     prof = get_profile()
 
     # 表示用⇔内部コードのマップ
@@ -457,8 +461,8 @@ def _render_page_profile():
 # ② 食事画像アップロード
 # =========================
 def _render_page_meal():
-    st.header("食事の画像をアップロードしてください")
-    st.caption("画像アップロード後「登録する」をクリック")
+    st.header("毎日、ごはんの写真をアップしてください")
+    st.write("画像アップロード後「登録する」をクリック")
 
     labels = ["朝ごはん", "昼ごはん", "夜ごはん", "その他"]
     tabs = st.tabs(labels)
@@ -501,9 +505,7 @@ def _render_page_meal():
 # =========================
 def _render_page_coaching():
     st.header("AIコーチからアドバイスを受ける")
-    st.write(
-        "直近7日間のデータを元にFitAIがあなたにアドバイスをします。"
-    )
+    st.write("直近7日間のデータを元にFitAIがあなたにアドバイスをします。")
 
     show_prompt = st.checkbox("送信プロンプトを表示", value=False)
 
