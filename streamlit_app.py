@@ -359,9 +359,9 @@ def run_weekly_coaching(show_prompt=False):
 # ① ユーザー情報ページ
 # =========================
 def _render_page_profile():
-    st.header("あなたの情報を入力してください")
+    st.header("あなたの情報を入力して、パーソナルプランを作りましょう")
     st.write("入力後「保存する」をクリック")
-    st.write("※入力は1回だけでOK。変更がある場合のみ、再入力してください。")
+    st.write("※初回入力だけでOK。内容を変更したいときだけ更新してください。")
     prof = get_profile()
 
     # 表示用⇔内部コードのマップ
@@ -461,7 +461,7 @@ def _render_page_profile():
 # ② 食事画像アップロード
 # =========================
 def _render_page_meal():
-    st.header("毎日、ごはんの写真をアップしてください")
+    st.header("毎日お食事の写真をアップして、健康記録を続けましょう")
     st.write("画像アップロード後「登録する」をクリック")
 
     labels = ["朝ごはん", "昼ごはん", "夜ごはん", "その他"]
@@ -504,8 +504,8 @@ def _render_page_meal():
 # ③ コーチング
 # =========================
 def _render_page_coaching():
-    st.header("AIコーチからアドバイスを受ける")
-    st.write("直近7日間のデータを元にFitAIがあなたにアドバイスをします。")
+    st.header("AIコーチからアドバイスをAIコーチからアドバイスを受けましょう")
+    st.write("直近7日間のデータをもとに、FitAIがあなた専用のアドバイスをお届けします。")
 
     show_prompt = st.checkbox("送信プロンプトを表示", value=False)
 
