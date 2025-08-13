@@ -504,7 +504,7 @@ def _render_page_meal():
 # ③ コーチング
 # =========================
 def _render_page_coaching():
-    st.header("AIコーチからアドバイスをAIコーチからアドバイスを受けましょう")
+    st.header("AIコーチからアドバイスを受けましょう")
     st.write("直近7日間のデータをもとに、FitAIがあなた専用のアドバイスをお届けします。")
 
     show_prompt = st.checkbox("送信プロンプトを表示", value=False)
