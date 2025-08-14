@@ -198,38 +198,43 @@ def validate_meal_data(meal_data: Dict[str, Any]) -> Dict[str, Any]:
     return {"valid": len(errors) == 0, "errors": errors}
 
 # 統計・分析用のヘルパー関数
-def get_meal_stats(user_id: str = "demo", days: int = 7) -> Dict[str, Any]:
-    """食事記録の統計情報を取得"""
+async def get_meal_stats(user_id: str = "demo", days: int = 7) -> Dict[str, Any]:
+    """食事記録の統計情報を取得
+
+    コールサイトは ``await get_meal_stats(...)`` として利用する。
+    """
+    meals_map = await meals_last_n_days(days, user_id)
+
+    total_meals = sum(len(meals) for meals in meals_map.values())
+    total_days = len(meals_map)
+
+    # カロリー統計
+    total_calories = 0
+    calorie_count = 0
+
+    for day_meals in meals_map.values():
+        for meal in day_meals:
+            if meal.get("kcal"):
+                total_calories += float(meal["kcal"])
+                calorie_count += 1
+
+    avg_calories_per_meal = total_calories / calorie_count if calorie_count > 0 else 0
+    avg_calories_per_day = total_calories / total_days if total_days > 0 else 0
+
+    return {
+        "period_days": days,
+        "total_meals": total_meals,
+        "avg_meals_per_day": total_meals / total_days if total_days > 0 else 0,
+        "total_calories": total_calories,
+        "avg_calories_per_meal": avg_calories_per_meal,
+        "avg_calories_per_day": avg_calories_per_day,
+        "meals_with_calories": calorie_count,
+        "calories_coverage": calorie_count / total_meals if total_meals > 0 else 0,
+    }
+
+
+def get_meal_stats_sync(user_id: str = "demo", days: int = 7) -> Dict[str, Any]:
+    """同期コンテキストから食事記録の統計情報を取得"""
     import asyncio
-    
-    async def _get_stats():
-        meals_map = await meals_last_n_days(days, user_id)
-        
-        total_meals = sum(len(meals) for meals in meals_map.values())
-        total_days = len(meals_map)
-        
-        # カロリー統計
-        total_calories = 0
-        calorie_count = 0
-        
-        for day_meals in meals_map.values():
-            for meal in day_meals:
-                if meal.get("kcal"):
-                    total_calories += float(meal["kcal"])
-                    calorie_count += 1
-        
-        avg_calories_per_meal = total_calories / calorie_count if calorie_count > 0 else 0
-        avg_calories_per_day = total_calories / total_days if total_days > 0 else 0
-        
-        return {
-            "period_days": days,
-            "total_meals": total_meals,
-            "avg_meals_per_day": total_meals / total_days if total_days > 0 else 0,
-            "total_calories": total_calories,
-            "avg_calories_per_meal": avg_calories_per_meal,
-            "avg_calories_per_day": avg_calories_per_day,
-            "meals_with_calories": calorie_count,
-            "calories_coverage": calorie_count / total_meals if total_meals > 0 else 0
-        }
-    
-    return asyncio.run(_get_stats())
+
+    return asyncio.run(get_meal_stats(user_id, days))
