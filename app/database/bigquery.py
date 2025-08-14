@@ -2,18 +2,34 @@ from google.cloud import bigquery
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from app.config import settings
+import hashlib
+import json
 
 bq_client = bigquery.Client(project=settings.BQ_PROJECT_ID) if settings.BQ_PROJECT_ID else None
 
 def bq_insert_rows(table: str, rows: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """BigQueryにデータを挿入"""
+    """BigQueryにデータを挿入。
+
+    Streaming insertはネットワーク再送などで同じ行が複数回登録されることが
+    あるため、各行の内容からハッシュ値を計算し `row_ids` として指定することで
+    BigQuery側での重複排除を行う。
+    """
     if not bq_client:
         return {"ok": False, "reason": "bq disabled"}
-    
+
     table_id = f"{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{table}"
-    
+
     try:
-        errors = bq_client.insert_rows_json(table_id, rows, ignore_unknown_values=True)
+        row_ids: List[str] = []
+        for row in rows:
+            # ingested_at のような挿入時刻は重複判定に含めない
+            row_copy = {k: v for k, v in row.items() if k != "ingested_at"}
+            row_json = json.dumps(row_copy, sort_keys=True, ensure_ascii=False)
+            row_ids.append(hashlib.sha256(row_json.encode()).hexdigest())
+
+        errors = bq_client.insert_rows_json(
+            table_id, rows, row_ids=row_ids, ignore_unknown_values=True
+        )
         return {"ok": not bool(errors), "errors": errors}
     except Exception as e:
         print(f"[ERROR] BigQuery insert failed: {e}")
