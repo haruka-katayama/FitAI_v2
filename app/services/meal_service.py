@@ -3,7 +3,7 @@
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any
 from app.database.firestore import user_doc
-from app.database.bigquery import bq_insert_rows
+from app.database.bigquery import bq_client, bq_insert_rows
 from app.config import settings
 
 def to_when_date_str(iso_str: str | None) -> str:
@@ -42,19 +42,39 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
 def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dict[str, Any]:
     """食事データをFirestoreとBigQueryに保存（重複排除機能付き）"""
 
-    # 重複排除キーを生成
+    # 重複排除キーを生成し、保存前に存在チェック
     dedup_key = create_meal_dedup_key(meal_data, user_id)
+    meals = user_doc(user_id).collection("meals")
+    doc_ref = meals.document(dedup_key)
+
+    try:
+        if doc_ref.get().exists:
+            # 既に登録済みの場合は保存をスキップ
+            return {
+                "ok": True,
+                "firestore": {"ok": True, "skipped": True},
+                "bigquery": {"ok": True, "skipped": True},
+                "dedup_key": dedup_key,
+                "timestamp_used": None,
+                "dedup_info": {
+                    "user_id": user_id,
+                    "when_date": meal_data["when_date"],
+                    "text_preview": meal_data["text"][:50] + "..." if len(meal_data["text"]) > 50 else meal_data["text"]
+                }
+            }
+    except Exception as e:
+        # チェックに失敗しても保存は試みる
+        print(f"[WARN] Firestore dedup check failed: {e}")
 
     # 共通のタイムスタンプを生成（重複排除とデータ整合性のため）
     current_time = datetime.now(timezone.utc).isoformat()
 
-    # Firestore保存用データ（created_atを統一）
-    firestore_data = {**meal_data, "created_at": current_time}
+    # Firestore保存用データ（created_atを統一、dedup_keyも保持）
+    firestore_data = {**meal_data, "created_at": current_time, "dedup_key": dedup_key}
 
     try:
         # Firestore保存
-        meals = user_doc(user_id).collection("meals")
-        meals.document().set(firestore_data)
+        doc_ref.set(firestore_data)
         firestore_result = {"ok": True}
     except Exception as e:
         print(f"[ERROR] Firestore meal save failed: {e}")
@@ -79,15 +99,28 @@ def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dic
     }
 
     try:
-        bq_result = bq_insert_rows(settings.BQ_TABLE_MEALS, [bq_data])
-        if not bq_result.get("ok"):
-            print(f"[WARN] BQ insert meals failed: {bq_result.get('errors')}")
+        if bq_client:
+            table_id = f"{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}"
+            errors = bq_client.insert_rows_json(
+                table_id, [bq_data], row_ids=[dedup_key], ignore_unknown_values=True
+            )
 
-            # エラーの詳細をログ出力
-            errors = bq_result.get("errors", [])
-            for error in errors:
-                print(f"[ERROR] BigQuery meal insert error: {error}")
-
+            if errors:
+                # 既に存在する場合（重複エラー）は成功として扱う
+                all_dup = all(
+                    all(
+                        err.get("reason") == "duplicate" or "already" in err.get("message", "").lower()
+                        for err in row.get("errors", [])
+                    )
+                    for row in errors
+                )
+                bq_result = {"ok": all_dup, "errors": errors, "skipped": all_dup}
+                if not all_dup:
+                    print(f"[ERROR] BigQuery meal insert error: {errors}")
+            else:
+                bq_result = {"ok": True}
+        else:
+            bq_result = {"ok": False, "reason": "bq disabled"}
     except Exception as e:
         print(f"[ERROR] BQ meal save failed: {e}")
         bq_result = {"ok": False, "error": str(e)}
