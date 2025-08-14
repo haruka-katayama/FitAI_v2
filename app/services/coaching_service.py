@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
-from app.external.openai_client import ask_gpt5
+from app.external.openai_client import ask_gpt
 from app.external.line_client import push_line
 from app.services.meal_service import meals_last_n_days
 from app.database.firestore import get_latest_profile, user_doc
@@ -144,7 +144,7 @@ async def daily_coaching() -> Dict[str, Any]:
         
         # GPTでコーチング生成
         prompt = build_daily_prompt(day)
-        msg = await ask_gpt5(prompt)
+        msg = await ask_gpt(prompt)
         
         # LINE送信
         res = push_line(f"⏰ 毎日のコーチング\n{msg}")
@@ -183,7 +183,7 @@ async def weekly_coaching(dry: bool = False, show_prompt: bool = False) -> Dict[
         send_res = {"sent": False, "reason": "dry"}
         if not dry:
             try:
-                msg = await ask_gpt5(prompt)
+                msg = await ask_gpt(prompt)
             except Exception as e:
                 print(f"[ERROR] OpenAI failed: {e}")
                 msg = f"(OpenAI error) {e}"
@@ -266,7 +266,7 @@ async def monthly_coaching() -> Dict[str, Any]:
 3) 実行チェックリスト（5箇条、短く）
 """
 
-    monthly_text = await ask_gpt5(prompt)
+    monthly_text = await ask_gpt(prompt)
 
     # Firestore保存
     user_doc("demo").collection("coach_monthly").document(month_str).set({

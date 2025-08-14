@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from app.services.coaching_service import daily_coaching, weekly_coaching, monthly_coaching, build_daily_prompt
-from app.external.openai_client import ask_gpt5
+from app.external.openai_client import ask_gpt
 from app.external.line_client import push_line
 from app.config import settings
 import httpx
@@ -16,7 +16,7 @@ async def coach_now():
     
     day = await fitbit_today_core()
     prompt = build_daily_prompt(day)
-    msg = await ask_gpt5(prompt)
+    msg = await ask_gpt(prompt)
     res = push_line(f"📣 今日のコーチング\n{msg}")
     return {"sent": res, "model": settings.OPENAI_MODEL, "preview": msg}
 
@@ -29,7 +29,7 @@ async def coach_now_debug():
         
         day = await fitbit_today_core()
         prompt = build_daily_prompt(day)
-        out = await ask_gpt5(prompt)
+        out = await ask_gpt(prompt)
         return {"ok": True, "preview": out, "model": settings.OPENAI_MODEL}
     except httpx.HTTPStatusError as e:
         return JSONResponse({"ok": False, "status": e.response.status_code, "body": e.response.text[:1200]}, status_code=500)

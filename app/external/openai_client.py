@@ -2,8 +2,8 @@ import httpx
 import base64
 from app.config import settings
 
-async def ask_gpt5(text: str) -> str:
-    """OpenAI Chat Completions API 呼び出し"""
+async def ask_gpt(text: str) -> str:
+    """Send a prompt to the OpenAI Chat Completions API and return the reply."""
     if not settings.OPENAI_API_KEY:
         return "（OPENAI_API_KEY が未設定です）"
     
