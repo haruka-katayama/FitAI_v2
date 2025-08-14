@@ -5,12 +5,7 @@ from typing import Dict, List, Any
 from app.database.firestore import user_doc
 from app.database.bigquery import bq_client, bq_insert_rows
 from app.config import settings
-
-def to_when_date_str(iso_str: str | None) -> str:
-    """ISO8601文字列の先頭10桁(YYYY-MM-DD)を日付キーとして返す"""
-    if not iso_str:
-        return datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
-    return iso_str[:10]
+from app.utils.date_utils import to_when_date_str
 
 async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List[Dict[str, Any]]]:
     """

@@ -4,10 +4,11 @@ from fastapi import APIRouter, Header, File, UploadFile, Form, Query
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
 from app.models.meal import MealIn
-from app.services.meal_service import save_meal_to_stores, to_when_date_str, validate_meal_data
+from app.services.meal_service import save_meal_to_stores, validate_meal_data
 from app.external.openai_client import vision_extract_meal_bytes
 from app.config import settings
 from app.utils.auth_utils import require_token
+from app.utils.date_utils import to_when_date_str
 import hashlib
 import uuid
 import logging
