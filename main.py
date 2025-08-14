@@ -13,7 +13,7 @@ import os
 # ルーターのインポート
 from app.routers import (
     health, ui, fitbit, healthplanet, 
-    weight, meals, coaching, cron, debug
+    weight, meals, coaching, cron, debug, dashboard
 )
 
 # ログ設定
@@ -94,6 +94,7 @@ app.include_router(meals.router, prefix="/meals")
 app.include_router(coaching.router, prefix="/coach")
 app.include_router(cron.router, prefix="/cron")
 app.include_router(debug.router, prefix="/debug")
+app.include_router(dashboard.router)  # ダッシュボード追加
 
 @app.get("/api/health")
 def api_health():
