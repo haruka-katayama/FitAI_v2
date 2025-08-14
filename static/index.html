@@ -1391,8 +1391,27 @@
 
                     // 既往歴の設定
                     if (profile.past_history && Array.isArray(profile.past_history)) {
+                        const jp2eng = {
+                            "高血圧": "hypertension",
+                            "糖尿病": "diabetes",
+                            "心疾患": "cad",
+                            "脳卒中（脳梗塞・脳出血）": "stroke",
+                            "気管支喘息": "asthma",
+                            "慢性閉塞性肺疾患（COPD）": "copd",
+                            "胃潰瘍・十二指腸潰瘍": "ulcer",
+                            "肝炎（B型・C型）": "hepatitis",
+                            "慢性腎不全": "kidney",
+                            "悪性腫瘍（がん）": "cancer",
+                            "骨粗鬆症": "osteoporosis",
+                            "関節リウマチ": "ra",
+                            "うつ病": "depression",
+                            "てんかん": "epilepsy",
+                            "薬剤アレルギー": "drug_allergy",
+                            "その他": "other"
+                        };
                         profile.past_history.forEach(item => {
-                            const checkbox = document.getElementById(`past-${item}`);
+                            const value = jp2eng[item] || item;
+                            const checkbox = document.getElementById(`past-${value}`);
                             if (checkbox) {
                                 checkbox.checked = true;
                                 checkbox.closest('.multiselect-option').classList.add('selected');
