@@ -135,18 +135,25 @@ async def ui_meal_image_no_store(
             "mime": mime,
         }
         save_res = save_meal_to_stores(payload, "demo")
-        if not save_res.get("ok"):
-            save_res.setdefault("where", "storage")
-            save_res.setdefault("preview", text)
-            return JSONResponse(save_res, status_code=500)
     except Exception as e:
         return JSONResponse(
             {"ok": False, "where": "storage", "error": repr(e)}, status_code=500
         )
 
-    if not save_res.get("firestore") or not save_res.get("bigquery", {}).get("ok"):
+    # BigQuery 失敗時はエラーとして返すが、プレビューは含める
+    if not save_res.get("bigquery", {}).get("ok"):
         bq_err = save_res.get("bigquery", {}).get("error") or save_res.get("bigquery", {}).get("errors")
         err_msg = bq_err or repr(save_res)
-        return JSONResponse({"ok": False, "where": "storage", "error": str(err_msg)}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "where": "storage", "error": str(err_msg), "preview": text},
+            status_code=500,
+        )
+
+    # Firestore 保存が失敗してもプレビューを返して処理を継続
+    if not save_res.get("firestore", {}).get("ok"):
+        print(
+            f"[WARN] Firestore meal save failed: {save_res.get('firestore', {}).get('error')}"
+        )
 
     return {"ok": True, "preview": text}
+
