@@ -1311,6 +1311,11 @@
                 if (targetTab) {
                     targetTab.classList.add('active');
                 }
+
+                // 食事ページ表示時に現在日時を設定
+                if (pageId === 'meal') {
+                    this.setDefaultMealDateTime();
+                }
             }
 
             // 食事タブ切り替え
