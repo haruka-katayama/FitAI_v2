@@ -1286,9 +1286,13 @@
             // API呼び出しヘルパー
             async apiCall(endpoint, options = {}) {
                 const headers = {
-                    'Content-Type': 'application/json',
                     ...options.headers
                 };
+                
+                // JSON送信でない場合（FormDataなど）はContent-Typeを設定しない
+                if (!(options.body instanceof FormData)) {
+                    headers['Content-Type'] = 'application/json';
+                }
                 
                 if (this.apiToken) {
                     headers['x-api-token'] = this.apiToken;
@@ -1301,6 +1305,21 @@
                     });
                     
                     if (!response.ok) {
+                        // 401エラーの場合、トークンなしで再試行
+                        if (response.status === 401 && this.apiToken) {
+                            console.log('401 error detected, retrying without token...');
+                            const headersWithoutToken = { ...headers };
+                            delete headersWithoutToken['x-api-token'];
+                            
+                            const retryResponse = await fetch(`${this.apiBaseUrl}${endpoint}`, {
+                                ...options,
+                                headers: headersWithoutToken
+                            });
+                            
+                            if (retryResponse.ok) {
+                                return await retryResponse.json();
+                            }
+                        }
                         throw new Error(`API Error: ${response.status} ${response.statusText}`);
                     }
                     
@@ -1428,13 +1447,26 @@
                     formData.append('file', this.selectedFile);
                     formData.append('when', whenISO);
 
-                    const response = await fetch(`${this.apiBaseUrl}/ui/meal_image`, {
+                    // 最初にトークンありで試行
+                    let headers = {};
+                    if (this.apiToken) {
+                        headers['x-api-token'] = this.apiToken;
+                    }
+
+                    let response = await fetch(`${this.apiBaseUrl}/ui/meal_image`, {
                         method: 'POST',
-                        headers: {
-                            'x-api-token': this.apiToken
-                        },
+                        headers: headers,
                         body: formData
                     });
+
+                    // 401エラーの場合、トークンなしで再試行
+                    if (response.status === 401) {
+                        console.log('401 error detected, retrying without token...');
+                        response = await fetch(`${this.apiBaseUrl}/ui/meal_image`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                    }
 
                     if (!response.ok) {
                         throw new Error(`Upload failed: ${response.status}`);
@@ -1899,6 +1931,15 @@
             console.log('API token set successfully');
         }
 
+        // APIトークン削除用の関数（デバッグ用）
+        function clearApiToken() {
+            localStorage.removeItem('fitai_api_token');
+            if (app) {
+                app.apiToken = '';
+            }
+            console.log('API token cleared successfully');
+        }
+
         // APIベースURL設定用の関数（デバッグ用）
         function setApiBaseUrl(url) {
             if (app) {
@@ -1910,6 +1951,7 @@
         // コンソールにデバッグ情報を表示
         console.log('%cFitAI アプリケーション', 'color: #ff6b35; font-size: 20px; font-weight: bold;');
         console.log('🔧 デバッグ用コマンド:');
+        console.log('  clearApiToken() - APIトークンを削除（401エラー解決）');
         console.log('  setApiToken("your-token") - APIトークンを設定');
         console.log('  setApiBaseUrl("http://localhost:8080") - APIベースURLを設定');
         console.log('  app - アプリケーションインスタンスにアクセス');
