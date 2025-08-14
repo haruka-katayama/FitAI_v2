@@ -159,16 +159,23 @@ async def get_weight_dashboard_data(
         return JSONResponse({"ok": False, "error": "BigQuery not configured"}, status_code=500)
     
     try:
-        # Health Planetからの体重データ
+        # Health Planetからの体重データ - 最新の測定値のみ取得
         weight_query = f"""
-        SELECT 
-            DATE(measured_at) as date,
-            value as weight_kg
-        FROM `{settings.HP_BQ_TABLE}`
-        WHERE user_id = @user_id
-          AND tag = '6021'  -- 体重
-          AND DATE(measured_at) BETWEEN @start_date AND @end_date
-        ORDER BY measured_at ASC
+        SELECT
+            date,
+            weight_kg
+        FROM (
+            SELECT
+                DATE(measured_at) AS date,
+                value AS weight_kg,
+                ROW_NUMBER() OVER(PARTITION BY DATE(measured_at) ORDER BY measured_at DESC) AS rn
+            FROM `{settings.HP_BQ_TABLE}`
+            WHERE user_id = @user_id
+              AND tag = '6021'  -- 体重
+              AND DATE(measured_at) BETWEEN @start_date AND @end_date
+        )
+        WHERE rn = 1
+        ORDER BY date ASC
         """
         
         job_config = bigquery.QueryJobConfig(
@@ -219,16 +226,17 @@ async def get_dashboard_summary(
         return JSONResponse({"ok": False, "error": "BigQuery not configured"}, status_code=500)
 
     try:
-        # カロリー収支と体重変化の取得
+        # カロリー収支と体重変化の取得 (重複データを集約)
         analysis_query = f"""
         SELECT
             date,
-            take_in_calories,
-            consumption_calories,
-            weight_change_kg
+            SUM(take_in_calories) AS take_in_calories,
+            SUM(consumption_calories) AS consumption_calories,
+            AVG(weight_change_kg) AS weight_change_kg
         FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_CALORIE_DIFF}`
         WHERE user_id = @user_id
           AND date BETWEEN @start_date AND @end_date
+        GROUP BY date
         ORDER BY date ASC
         """
 
@@ -250,16 +258,23 @@ async def get_dashboard_summary(
             for row in analysis_rows
         }
 
-        # 体重データの取得
+        # 体重データの取得 (1日1つの最新値のみ)
         weight_query = f"""
         SELECT
-            DATE(measured_at) as date,
-            value as weight_kg
-        FROM `{settings.HP_BQ_TABLE}`
-        WHERE user_id = @user_id
-          AND tag = '6021'
-          AND DATE(measured_at) BETWEEN @start_date AND @end_date
-        ORDER BY measured_at ASC
+            date,
+            weight_kg
+        FROM (
+            SELECT
+                DATE(measured_at) AS date,
+                value AS weight_kg,
+                ROW_NUMBER() OVER(PARTITION BY DATE(measured_at) ORDER BY measured_at DESC) AS rn
+            FROM `{settings.HP_BQ_TABLE}`
+            WHERE user_id = @user_id
+              AND tag = '6021'
+              AND DATE(measured_at) BETWEEN @start_date AND @end_date
+        )
+        WHERE rn = 1
+        ORDER BY date ASC
         """
 
         weight_config = bigquery.QueryJobConfig(query_parameters=[
