@@ -115,17 +115,18 @@ async def ui_meal_image(
                 status_code=500,
             )
 
+        skipped = save_res.get("firestore", {}).get("skipped")
         resp = {
             "ok": True,
-            "row_id": save_res["row_id"],
+            "dedup_key": save_res["dedup_key"],
             "request_id": request_id,
-            "inserted": save_res.get("inserted", False),
+            "inserted": not skipped,
             "preview": text,
         }
-        if not save_res.get("inserted"):
+        if skipped:
             resp["message"] = "既に登録済みのデータです（重複をスキップしました）"
 
-        logger.info(f"[MEAL_IMAGE] success row_id={save_res['row_id']} request_id={request_id}")
+        logger.info(f"[MEAL_IMAGE] success dedup_key={save_res['dedup_key']} request_id={request_id}")
         return resp
 
     except Exception as e:
@@ -160,16 +161,17 @@ def ui_meal(
 
     try:
         save_res = save_meal_to_stores(payload, user_id)
+        skipped = save_res.get("firestore", {}).get("skipped")
         resp = {
             "ok": save_res["ok"],
-            "row_id": save_res["row_id"],
+            "dedup_key": save_res["dedup_key"],
             "request_id": request_id,
-            "inserted": save_res.get("inserted", False),
+            "inserted": not skipped,
         }
-        if not save_res.get("inserted"):
+        if skipped:
             resp["message"] = "既に登録済みのデータです（重複をスキップしました）"
 
-        logger.info(f"[MEAL_TEXT] done row_id={save_res['row_id']} request_id={request_id}")
+        logger.info(f"[MEAL_TEXT] done dedup_key={save_res['dedup_key']} request_id={request_id}")
         return resp
 
     except Exception as e:
