@@ -40,9 +40,9 @@ app.add_middleware(
 )
 
 # 静的ファイルの配信（staticディレクトリが存在する場合）
-static_dir = Path("static")
+static_dir = Path(__file__).resolve().parent / "static"
 if static_dir.exists():
-    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # グローバル例外ハンドラー
 @app.exception_handler(Exception)
