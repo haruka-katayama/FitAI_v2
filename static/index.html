@@ -1334,16 +1334,23 @@
                 const headers = {
                     ...options.headers
                 };
-                
+
                 // JSON送信でない場合（FormDataなど）はContent-Typeを設定しない
                 if (!(options.body instanceof FormData)) {
                     headers['Content-Type'] = 'application/json';
                 }
-                
+
                 if (this.apiToken) {
                     headers['x-api-token'] = this.apiToken;
                 }
-                
+
+                // APIコールのデバウンス（500ms）
+                const now = Date.now();
+                if (this._lastApiCallTime && now - this._lastApiCallTime < 500) {
+                    await new Promise(resolve => setTimeout(resolve, 500 - (now - this._lastApiCallTime)));
+                }
+                this._lastApiCallTime = Date.now();
+
                 try {
                     const response = await fetch(`${this.apiBaseUrl}${endpoint}`, {
                         ...options,
@@ -1432,6 +1439,11 @@
 
             // プロフィール保存
             async saveProfile() {
+                const saveBtn = document.querySelector('#profile-form button[type="submit"]');
+                if (saveBtn) {
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = '<span class="loading-spinner"></span> 保存中...';
+                }
                 try {
                     const formData = new FormData(document.getElementById('profile-form'));
                     
@@ -1487,6 +1499,11 @@
 
                 } catch (error) {
                     this.showStatus('profile-status', `❌ 保存に失敗しました: ${error.message}`, 'error');
+                } finally {
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = '💾 プロフィールを保存';
+                    }
                 }
             }
 
@@ -1792,11 +1809,21 @@
 
             // ダッシュボード更新
             async updateDashboard() {
+                const updateBtn = document.getElementById('update-dashboard');
+                if (updateBtn) {
+                    updateBtn.disabled = true;
+                    updateBtn.innerHTML = '<span class="loading-spinner"></span> 更新中...';
+                }
+
                 const startDate = document.getElementById('start-date').value;
                 const endDate = document.getElementById('end-date').value;
 
                 if (!startDate || !endDate) {
                     this.showStatus('dashboard-status', '日付を選択してください', 'error');
+                    if (updateBtn) {
+                        updateBtn.disabled = false;
+                        updateBtn.innerHTML = '🔄 更新';
+                    }
                     return;
                 }
 
@@ -1824,6 +1851,11 @@
                         this.showStatus('dashboard-status', '⚠️ モックデータを表示中（APIエラーのため）', 'warning');
                     } catch (mockError) {
                         this.showStatus('dashboard-status', '❌ データ表示に失敗しました', 'error');
+                    }
+                } finally {
+                    if (updateBtn) {
+                        updateBtn.disabled = false;
+                        updateBtn.innerHTML = '🔄 更新';
                     }
                 }
             }
