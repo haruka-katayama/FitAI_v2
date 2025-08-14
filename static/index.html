@@ -1058,7 +1058,19 @@
                 this.loadProfile();
                 this.setupMealUpload();
                 this.initializeDashboard();
-                this.restoreState();
+                
+                // URLハッシュまたは保存された状態からページを復元
+                this.restorePageFromURL();
+                
+                // デフォルトの日付設定
+                const today = new Date();
+                const sevenDaysAgo = new Date(today);
+                sevenDaysAgo.setDate(today.getDate() - 6);
+
+                document.getElementById('start-date').value = this.formatDate(sevenDaysAgo);
+                document.getElementById('end-date').value = this.formatDate(today);
+                this.setDefaultMealDateTime();
+            }
                 
                 // デフォルトの日付設定
                 const today = new Date();
