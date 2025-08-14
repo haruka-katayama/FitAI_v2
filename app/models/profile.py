@@ -12,8 +12,10 @@ class ProfileIn(BaseModel):
     smoking_status: Optional[Literal["never", "former", "current"]] = None  # 喫煙状況
     alcohol_habit: Optional[Literal["none", "social", "moderate", "heavy"]] = None  # 飲酒習慣
     past_history: Optional[List[Literal[
-        "hypertension", "diabetes", "cad", "stroke", "dyslipidemia", "kidney", "liver", "asthma", "other"
-    ]]] = None  # 既往歴
+        "hypertension", "diabetes", "cad", "stroke", "asthma", "copd", "ulcer",
+        "hepatitis", "kidney", "cancer", "osteoporosis", "ra", "depression", 
+        "epilepsy", "drug_allergy", "other"
+    ]]] = None  # 既往歴 - pasteしたデータに合わせて拡張
     medications: Optional[str] = None  # 現在の服薬
     allergies: Optional[str] = None    # アレルギー
     
