@@ -112,7 +112,10 @@ async def ui_meal_image_no_store(
         }
 
     if not settings.OPENAI_API_KEY:
-        return JSONResponse({"ok": False, "error": "OPENAI_API_KEY not set"}, status_code=500)
+        return JSONResponse(
+            {"ok": False, "where": "openai_api_key", "error": "OPENAI_API_KEY not set"},
+            status_code=500,
+        )
 
     # 画像→OpenAI
     try:
@@ -131,9 +134,15 @@ async def ui_meal_image_no_store(
             "file_name": file.filename,
             "mime": mime,
         }
-        save_meal_to_stores(payload, "demo")
+        save_res = save_meal_to_stores(payload, "demo")
     except Exception as e:
-        return JSONResponse({"ok": False, "where": "storage", "error": repr(e),
-                             "preview": text}, status_code=500)
-    
+        return JSONResponse(
+            {"ok": False, "where": "storage", "error": repr(e)}, status_code=500
+        )
+
+    if not save_res.get("firestore") or not save_res.get("bigquery", {}).get("ok"):
+        bq_err = save_res.get("bigquery", {}).get("error") or save_res.get("bigquery", {}).get("errors")
+        err_msg = bq_err or repr(save_res)
+        return JSONResponse({"ok": False, "where": "storage", "error": str(err_msg)}, status_code=500)
+
     return {"ok": True, "preview": text}
