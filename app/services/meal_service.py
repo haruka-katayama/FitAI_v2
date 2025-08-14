@@ -41,13 +41,16 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
 
 def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dict[str, Any]:
     """食事データをFirestoreとBigQueryに保存（重複排除機能付き）"""
-    
+
+    # 重複排除キーを生成
+    dedup_key = create_meal_dedup_key(meal_data, user_id)
+
     # 共通のタイムスタンプを生成（重複排除とデータ整合性のため）
     current_time = datetime.now(timezone.utc).isoformat()
-    
+
     # Firestore保存用データ（created_atを統一）
     firestore_data = {**meal_data, "created_at": current_time}
-    
+
     try:
         # Firestore保存
         meals = user_doc(user_id).collection("meals")
@@ -72,35 +75,37 @@ def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dic
         "notes": meal_data.get("notes"),
         "ingested_at": current_time,  # 統一されたタイムスタンプを使用
         "created_at": current_time,   # created_atも同じ値に統一
+        "dedup_key": dedup_key,
     }
 
     try:
         bq_result = bq_insert_rows(settings.BQ_TABLE_MEALS, [bq_data])
         if not bq_result.get("ok"):
             print(f"[WARN] BQ insert meals failed: {bq_result.get('errors')}")
-            
+
             # エラーの詳細をログ出力
             errors = bq_result.get("errors", [])
             for error in errors:
                 print(f"[ERROR] BigQuery meal insert error: {error}")
-                
+
     except Exception as e:
         print(f"[ERROR] BQ meal save failed: {e}")
         bq_result = {"ok": False, "error": str(e)}
 
     # 結果の統合
     overall_ok = firestore_result.get("ok") and bq_result.get("ok")
-    
+
     return {
         "ok": overall_ok,
         "firestore": firestore_result,
         "bigquery": bq_result,
         "timestamp_used": current_time,  # デバッグ情報として追加
+        "dedup_key": dedup_key,
         "dedup_info": {
             "user_id": user_id,
             "when_date": meal_data["when_date"],
-            "text_preview": meal_data["text"][:50] + "..." if len(meal_data["text"]) > 50 else meal_data["text"]
-        }
+            "text_preview": meal_data["text"][:50] + "..." if len(meal_data["text"]) > 50 else meal_data["text"],
+        },
     }
 
 def create_meal_dedup_key(meal_data: Dict[str, Any], user_id: str) -> str:
