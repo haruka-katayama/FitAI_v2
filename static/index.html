@@ -1055,12 +1055,14 @@
                 this.setupEventListeners();
                 this.setupPWA();
                 this.setupPastHistoryMultiselect();
-                this.loadProfile();
                 this.setupMealUpload();
                 this.initializeDashboard();
                 
-                // URLハッシュまたは保存された状態からページを復元
-                this.restorePageFromURL();
+                // 初期ページの設定（イベントリスナー設定前に）
+                this.setInitialPage();
+                
+                // プロフィール読み込み
+                this.loadProfile();
                 
                 // デフォルトの日付設定
                 const today = new Date();
