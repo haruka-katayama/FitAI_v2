@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from app.config import settings
-from app.external.openai_client import ask_gpt5
+from app.external.openai_client import ask_gpt
 from app.database.firestore import user_doc
 from datetime import datetime, timezone
 import httpx
