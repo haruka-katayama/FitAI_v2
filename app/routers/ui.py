@@ -131,7 +131,11 @@ async def ui_meal_image_no_store(
             "file_name": file.filename,
             "mime": mime,
         }
-        save_meal_to_stores(payload, "demo")
+        store_res = save_meal_to_stores(payload, "demo")
+        if not store_res.get("ok"):
+            store_res.setdefault("where", "storage")
+            store_res.setdefault("preview", text)
+            return JSONResponse(store_res, status_code=500)
     except Exception as e:
         return JSONResponse({"ok": False, "where": "storage", "error": repr(e),
                              "preview": text}, status_code=500)
