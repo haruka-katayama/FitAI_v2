@@ -64,11 +64,25 @@ def build_weekly_prompt(days: List[Dict[str, Any]], meals_by_day: Dict[str, List
         add("喫煙状況", "smoking_status")
         add("飲酒習慣", "alcohol_habit")
 
+
         if isinstance(profile.get("past_history"), list) and profile["past_history"]:
             mapping = {
-                "hypertension": "高血圧", "diabetes": "糖尿病", "cad": "心疾患",
-                "stroke": "脳卒中", "dyslipidemia": "脂質異常症",
-                "kidney": "腎疾患", "liver": "肝疾患", "asthma": "喘息", "other": "その他",
+                "hypertension": "高血圧",
+                "diabetes": "糖尿病",
+                "cad": "心疾患",
+                "stroke": "脳卒中（脳梗塞・脳出血）",
+                "asthma": "気管支喘息",
+                "copd": "慢性閉塞性肺疾患（COPD）",
+                "ulcer": "胃潰瘍・十二指腸潰瘍",
+                "hepatitis": "肝炎（B型・C型）",
+                "kidney": "慢性腎不全",
+                "cancer": "悪性腫瘍（がん）",
+                "osteoporosis": "骨粗鬆症",
+                "ra": "関節リウマチ",
+                "depression": "うつ病",
+                "epilepsy": "てんかん",
+                "drug_allergy": "薬剤アレルギー",
+                "other": "その他",
             }
             j = ", ".join(mapping.get(x, x) for x in profile["past_history"])
             prof_lines.append(f"- 既往歴: {j}")
