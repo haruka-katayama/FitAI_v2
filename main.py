@@ -19,8 +19,14 @@ from app.routers import (
 # ログ設定
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s] %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        # 必要に応じてファイルハンドラーも追加
+        # logging.FileHandler('/tmp/fitai.log')
+    ]
 )
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
