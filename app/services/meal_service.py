@@ -39,9 +39,14 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
 
 def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dict[str, Any]:
     """食事データをFirestoreとBigQueryに保存"""
-    # Firestore保存
-    meals = user_doc(user_id).collection("meals")
-    meals.document().set(meal_data)
+    try:
+        # Firestore保存
+        meals = user_doc(user_id).collection("meals")
+        meals.document().set(meal_data)
+        firestore_result = True
+    except Exception as e:
+        print(f"[ERROR] Firestore meal save failed: {e}")
+        firestore_result = False
 
     # BigQuery保存
     bq_data = {
@@ -56,8 +61,12 @@ def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dic
         "ingested_at": datetime.now(timezone.utc).isoformat(),
     }
     
-    bq_result = bq_insert_rows(settings.BQ_TABLE_MEALS, [bq_data])
-    if not bq_result.get("ok"):
-        print(f"[ERROR] BQ insert meals failed: {bq_result.get('errors')}")
+    try:
+        bq_result = bq_insert_rows(settings.BQ_TABLE_MEALS, [bq_data])
+        if not bq_result.get("ok"):
+            print(f"[WARN] BQ insert meals failed: {bq_result.get('errors')}")
+    except Exception as e:
+        print(f"[ERROR] BQ meal save failed: {e}")
+        bq_result = {"ok": False, "error": str(e)}
     
-    return {"firestore": True, "bigquery": bq_result}
+    return {"firestore": firestore_result, "bigquery": bq_result}
