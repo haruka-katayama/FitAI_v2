@@ -130,7 +130,7 @@
         .nav-tabs {
         display: flex !important;
         gap: 12px;
-        flex-wrap: wrap;         /* ← wrapに変更 */
+        flex-wrap: wrap;
         justify-content: center;
         overflow-x: auto;
         padding: 5px;
@@ -448,6 +448,56 @@
             color: #856404;
         }
 
+        /* 既往歴の多項目選択 */
+        .multiselect-container {
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 250px;
+            overflow-y: auto;
+            background: white;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 8px;
+        }
+
+        .multiselect-option {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            margin: 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #f8f9fa;
+            border: 1px solid transparent;
+        }
+
+        .multiselect-option:hover {
+            background: rgba(255, 107, 53, 0.1);
+            border-color: rgba(255, 107, 53, 0.3);
+        }
+
+        .multiselect-option input {
+            margin-right: 8px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .multiselect-option label {
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            margin: 0;
+        }
+
+        .multiselect-option.selected {
+            background: rgba(255, 107, 53, 0.1);
+            border-color: #ff6b35;
+        }
+
         .chart-container {
             background: white;
             border-radius: 15px;
@@ -563,33 +613,6 @@
             font-weight: 800;
         }
 
-        .multiselect-container {
-            border: 2px solid #e1e5e9;
-            border-radius: 10px;
-            padding: 10px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .multiselect-option {
-            display: flex;
-            align-items: center;
-            padding: 8px;
-            margin: 2px 0;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-        }
-
-        .multiselect-option:hover {
-            background: rgba(168, 85, 247, 0.1);
-        }
-
-        .multiselect-option input {
-            margin-right: 10px;
-            width: auto;
-        }
-
         .date-range-container {
             display: flex;
             gap: 15px;
@@ -672,6 +695,10 @@
             
             .period-buttons {
                 justify-content: center;
+            }
+
+            .multiselect-container {
+                grid-template-columns: 1fr;
             }
         }
 
@@ -973,18 +1000,27 @@
             constructor() {
                 this.currentPage = 'profile';
                 this.currentMealType = 'breakfast';
-                this.apiBaseUrl = '';  // FastAPIのベースURL（環境変数から設定される想定）
+                this.apiBaseUrl = '';
                 this.apiToken = localStorage.getItem('fitai_api_token') || '';
                 this.charts = {};
                 this.selectedFile = null;
+                // PASTEされたデータに基づく既往歴オプション
                 this.pastHistoryOptions = [
                     {value: 'hypertension', label: '高血圧'},
                     {value: 'diabetes', label: '糖尿病'},
                     {value: 'cad', label: '心疾患'},
                     {value: 'stroke', label: '脳卒中（脳梗塞・脳出血）'},
                     {value: 'asthma', label: '気管支喘息'},
+                    {value: 'copd', label: '慢性閉塞性肺疾患（COPD）'},
+                    {value: 'ulcer', label: '胃潰瘍・十二指腸潰瘍'},
+                    {value: 'hepatitis', label: '肝炎（B型・C型）'},
                     {value: 'kidney', label: '慢性腎不全'},
-                    {value: 'liver', label: '肝疾患'},
+                    {value: 'cancer', label: '悪性腫瘍（がん）'},
+                    {value: 'osteoporosis', label: '骨粗鬆症'},
+                    {value: 'ra', label: '関節リウマチ'},
+                    {value: 'depression', label: 'うつ病'},
+                    {value: 'epilepsy', label: 'てんかん'},
+                    {value: 'drug_allergy', label: '薬剤アレルギー'},
                     {value: 'other', label: 'その他'}
                 ];
                 this.initializeApp();
@@ -1016,7 +1052,7 @@
                 // ナビゲーション
                 document.querySelectorAll('.nav-tab').forEach(tab => {
                     tab.addEventListener('click', (e) => {
-                        const page = e.currentTarget.dataset.page; // ← currentTargetで安定
+                        const page = e.currentTarget.dataset.page;
                         this.navigateToPage(page);
                     });
                 });
@@ -1112,6 +1148,25 @@
                         <input type="checkbox" id="past-${option.value}" value="${option.value}">
                         <label for="past-${option.value}">${option.label}</label>
                     `;
+
+                    // チェックボックスの変更を監視
+                    const checkbox = div.querySelector('input');
+                    checkbox.addEventListener('change', () => {
+                        if (checkbox.checked) {
+                            div.classList.add('selected');
+                        } else {
+                            div.classList.remove('selected');
+                        }
+                    });
+
+                    // ラベルクリックでもチェックボックスを切り替え
+                    div.addEventListener('click', (e) => {
+                        if (e.target.tagName !== 'INPUT') {
+                            checkbox.checked = !checkbox.checked;
+                            checkbox.dispatchEvent(new Event('change'));
+                        }
+                    });
+
                     container.appendChild(div);
                 });
             }
@@ -1273,6 +1328,7 @@
                             const checkbox = document.getElementById(`past-${item}`);
                             if (checkbox) {
                                 checkbox.checked = true;
+                                checkbox.closest('.multiselect-option').classList.add('selected');
                             }
                         });
                     }
@@ -1317,12 +1373,24 @@
                         }
                     });
 
-                    await this.apiCall('/ui/profile', {
+                    const result = await this.apiCall('/ui/profile', {
                         method: 'POST',
                         body: JSON.stringify(profileData)
                     });
 
-                    this.showStatus('profile-status', '✅ プロフィールを保存しました', 'success');
+                    if (result.ok) {
+                        this.showStatus('profile-status', '✅ プロフィールを保存しました', 'success');
+                        
+                        // BigQuery同期結果を表示
+                        if (result.bq && !result.bq.ok) {
+                            this.showStatus('profile-status', `⚠️ BigQuery同期に失敗: ${result.bq.reason || result.bq.error}`, 'warning', true);
+                        } else if (result.bq && result.bq.ok) {
+                            this.showStatus('profile-status', '✅ BigQueryにも同期完了', 'success', true);
+                        }
+                    } else {
+                        throw new Error(result.error || 'Unknown error');
+                    }
+
                     this.saveState();
 
                 } catch (error) {
@@ -1396,13 +1464,15 @@
 
                         // フォームリセット
                         this.resetMealForm();
+                    } else {
+                        throw new Error(result.error || 'Unknown error');
                     }
 
                 } catch (error) {
                     this.showStatus('meal-status', `❌ アップロードに失敗しました: ${error.message}`, 'error');
                 } finally {
                     uploadBtn.disabled = false;
-                    uploadBtn.innerHTML = '🚀 登録する';
+                    uploadBtn.innerHTML = '🚀 食事を登録する';
                 }
             }
 
@@ -1792,13 +1862,13 @@
                     "purpose": "any maskable"
                 },
                 {
-                    "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiIHJ4PSIxMjgiIGZpbGw9IiMwMDY2Y2MiLz48dGV4dCB4PSIyNTYiIHk9IjMwMCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjIwMCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPvCfj4PigI3imYI8L3RleHQ+PC9zdmc+",
+                    "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiIHJ4PSIxMjgiIGZpbGw9IiMwMDY2Y2MiLz48dGV4dCB4PSIyNTYiIHk9IjMwMCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjIwMCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPvCfkqo8L3RleHQ+PC9zdmc+",
                     "sizes": "512x512",
                     "type": "image/svg+xml",
                     "purpose": "any maskable"
                 }
             ],
-            "theme_color": "#a855f7",
+            "theme_color": "#ff6b35",
             "background_color": "#ffffff",
             "display": "standalone",
             "start_url": "/",
