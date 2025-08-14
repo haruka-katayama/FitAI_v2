@@ -1198,7 +1198,7 @@
                 });
 
                 document.addEventListener('click', (e) => {
-                    if (!optionsContainer.contains(e.target) && e.target !== selectedDisplay) {
+                    if (!optionsContainer.contains(e.target) && !selectedDisplay.contains(e.target)) {
                         optionsContainer.style.display = 'none';
                     }
                 });
