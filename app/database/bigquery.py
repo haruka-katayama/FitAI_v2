@@ -41,6 +41,9 @@ def bq_insert_rows(table: str, rows: List[Dict[str, Any]]) -> Dict[str, Any]:
                     "when_date": row_copy.get("when_date"),
                     "text": row_copy.get("text"),
                     "source": row_copy.get("source"),
+                    "meal_kind": row_copy.get("meal_kind"),
+                    "image_digest": row_copy.get("image_digest"),
+                    "notes": row_copy.get("notes"),
                     # whenは分単位で丸めて、同じ時間帯の重複を防ぐ
                     "when_rounded": row_copy.get("when", "")[:16] if row_copy.get("when") else ""  # YYYY-MM-DDTHH:MM
                 }
