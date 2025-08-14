@@ -179,7 +179,7 @@ def bq_upsert_profile(user_id: str = "demo") -> Dict[str, Any]:
             }
 
 def bq_upsert_fitbit_days(user_id: str, days: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Fitbit日次データをBigQueryに保存（日付パーティションごとに上書き）"""
+    """Fitbit日次データをBigQueryに保存（標準のINSERTを使用）"""
     if not bq_client or not days:
         return {"ok": False, "reason": "bq disabled or empty"}
 
@@ -189,45 +189,56 @@ def bq_upsert_fitbit_days(user_id: str, days: List[Dict[str, Any]]) -> Dict[str,
         except Exception:
             return 0
 
-    jobs = []
+    # 通常のテーブルへの挿入に変更
+    table_id = f"{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_FITBIT}"
+    
+    rows = []
     for d in days:
         if not d.get("date"):
             continue
-        date_str = d["date"]                 # "YYYY-MM-DD"
-        part = date_str.replace("-", "")     # "YYYYMMDD"
-        table_id = f"{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_FITBIT}${part}"
-
+            
         row = {
             "user_id": user_id,
-            "date": date_str,
+            "date": d["date"],  # "YYYY-MM-DD"
             "steps_total": to_int(d.get("steps_total", 0)),
             "sleep_line": d.get("sleep_line", ""),
             "spo2_line": d.get("spo2_line", ""),
             "calories_total": to_int(d.get("calories_total", 0)),
             "ingested_at": datetime.now(timezone.utc).isoformat(),
         }
+        rows.append(row)
 
-        job_config = bigquery.LoadJobConfig(
-            write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
-            source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
-            schema=[
-                bigquery.SchemaField("user_id", "STRING"),
-                bigquery.SchemaField("date", "DATE"),
-                bigquery.SchemaField("steps_total", "INTEGER"),
-                bigquery.SchemaField("sleep_line", "STRING"),
-                bigquery.SchemaField("spo2_line", "STRING"),
-                bigquery.SchemaField("calories_total", "INTEGER"),
-                bigquery.SchemaField("ingested_at", "TIMESTAMP"),
-            ],
+    if not rows:
+        return {"ok": True, "reason": "no data to insert", "count": 0}
+
+    try:
+        # 既存データを削除してから挿入（UPSERT的な動作）
+        dates_to_delete = [row["date"] for row in rows]
+        delete_query = f"""
+        DELETE FROM `{table_id}` 
+        WHERE user_id = @user_id 
+          AND date IN UNNEST(@dates)
+        """
+        
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+                bigquery.ArrayQueryParameter("dates", "DATE", dates_to_delete),
+            ]
         )
-
-        job = bq_client.load_table_from_json([row], table_id, job_config=job_config)
-        jobs.append(job)
-
-    errors = []
-    for j in jobs:
-        j.result()
-        if j.errors:
-            errors.extend(j.errors)
-
-    return {"ok": not bool(errors), "errors": errors, "count": len(jobs)}
+        
+        delete_job = bq_client.query(delete_query, job_config=job_config)
+        delete_job.result()
+        
+        # 新しいデータを挿入
+        errors = bq_client.insert_rows_json(table_id, rows, ignore_unknown_values=True)
+        
+        return {
+            "ok": not bool(errors), 
+            "errors": errors, 
+            "count": len(rows),
+            "deleted": delete_job.num_dml_affected_rows
+        }
+        
+    except Exception as e:
+        return {"ok": False, "error": str(e), "count": 0}
