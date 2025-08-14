@@ -18,77 +18,81 @@ import uuid
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 
-@router.get("/profile")
-def ui_profile_get(x_api_token: str | None = Header(None, alias="x-api-token")):
-    """プロフィール取得"""
-    require_token(x_api_token)
-    snap = user_doc("demo").collection("profile").document("latest").get()
-    if not snap.exists:
-        return {"ok": True, "profile": {}}
-    return {"ok": True, "profile": snap.to_dict()}
+# app/routers/ui.py - 食事画像アップロード部分の修正
 
-@router.post("/profile")
-def ui_profile(body: ProfileIn, x_api_token: str | None = Header(None, alias="x-api-token")):
-    """プロフィール保存"""
+@router.post("/meal_image")
+async def ui_meal_image(
+    x_api_token: str | None = Header(None, alias="x-api-token"),
+    when: str | None = Form(None),
+    file: UploadFile = File(...),
+    dry: bool = Query(False),
+):
+    """画像食事記録（重複排除機能付き）"""
     require_token(x_api_token)
-    doc = user_doc("demo").collection("profile").document("latest")
-    payload = {k: v for k, v in body.dict().items() if v is not None}
     
-    # notes から gender/target_weight_kg を補完
-    def parse_notes(notes: str | None) -> dict[str, str]:
-        out: dict[str, str] = {}
-        if not notes:
-            return out
-        for line in notes.splitlines():
-            line = line.strip()
-            if not line or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            out[k.strip()] = v.strip()
-        return out
-
-    nmap = parse_notes(payload.get("notes"))
-    if "sex" not in payload and "gender" in nmap:
-        payload["sex"] = nmap["gender"]
-    if "target_weight_kg" not in payload and "target_weight_kg" in nmap:
-        try:
-            payload["target_weight_kg"] = float(nmap["target_weight_kg"])
-        except Exception:
-            pass
-
-    payload["updated_at"] = datetime.now(timezone.utc).isoformat()
-    doc.set(payload, merge=True)
-    
-    # BigQuery同期
-    try:
-        bq_res = bq_upsert_profile("demo")
-        if not bq_res.get("ok"):
-            print(f"[WARN] bq_upsert_profile failed: {bq_res}")
-    except Exception as e:
-        print(f"[ERROR] bq_upsert_profile exception: {e}")
-        bq_res = {"ok": False, "reason": repr(e)}
-
-    return {"ok": True, "bq": bq_res}
-
-@router.get("/profile_latest")
-def ui_profile_latest(x_api_token: str | None = Header(None, alias="x-api-token")):
-    """最新プロフィール取得"""
-    require_token(x_api_token)
-    doc = user_doc("demo").collection("profile").document("latest").get()
-    return doc.to_dict() or {}
-
-@router.post("/meal")
-def ui_meal(body: MealIn, x_api_token: str | None = Header(None, alias="x-api-token")):
-    """テキスト食事記録"""
-    require_token(x_api_token)
-
     request_id = str(uuid.uuid4())
-    payload = body.dict()
-    payload["created_at"] = datetime.now(timezone.utc).isoformat()
-    payload["when_date"] = to_when_date_str(body.when)
-    payload["source"] = "text"
-
-    # データバリデーション
+    logger.info(f"[MEAL_IMAGE] Start processing, request_id={request_id}")
+    
+    data: bytes = await file.read()
+    mime = file.content_type or "image/png"
+    
+    # Dry runモード
+    if dry:
+        return {
+            "ok": True,
+            "stage": "received",
+            "file_name": file.filename,
+            "size": len(data),
+            "mime": mime,
+            "request_id": request_id,
+        }
+    
+    # OpenAI API キー確認
+    if not settings.OPENAI_API_KEY:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "OPENAI_API_KEY not set",
+                "request_id": request_id,
+            },
+            status_code=500,
+        )
+    
+    # 処理時刻の統一
+    processing_time = datetime.now(timezone.utc)
+    when_iso = when or processing_time.isoformat(timespec="seconds")
+    
+    # 画像のダイジェスト生成（内容ベースの識別子）
+    image_digest = hashlib.sha256(data).hexdigest()
+    
+    try:
+        # OpenAI Vision APIで画像をテキスト化
+        logger.info(f"[MEAL_IMAGE] Calling OpenAI Vision, request_id={request_id}")
+        text = await vision_extract_meal_bytes(data, mime)
+        logger.info(f"[MEAL_IMAGE] OpenAI response received, request_id={request_id}")
+        
+    except Exception as e:
+        logger.error(f"[MEAL_IMAGE] OpenAI error: {e}, request_id={request_id}")
+        return JSONResponse(
+            {"ok": False, "error": str(e), "request_id": request_id},
+            status_code=500,
+        )
+    
+    # 保存用データ準備
+    payload = {
+        "when": when_iso,
+        "when_date": to_when_date_str(when_iso),
+        "text": text,
+        "created_at": processing_time.isoformat(),
+        "source": "image-bytes+gpt",
+        "file_name": file.filename,
+        "mime": mime,
+        "image_digest": image_digest,  # 重複検知用
+        "meal_kind": "other",  # デフォルト値
+        "notes": "",
+    }
+    
+    # バリデーション
     validation = validate_meal_data(payload)
     if not validation["valid"]:
         return JSONResponse(
@@ -100,19 +104,89 @@ def ui_meal(body: MealIn, x_api_token: str | None = Header(None, alias="x-api-to
             },
             status_code=400,
         )
+    
+    try:
+        # データベースに保存（重複排除付き）
+        save_res = save_meal_to_stores(payload, "demo")
+        
+        if not save_res["ok"]:
+            logger.error(f"[MEAL_IMAGE] Save failed: {save_res}, request_id={request_id}")
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "Failed to save meal data",
+                    "details": save_res,
+                    "request_id": request_id,
+                },
+                status_code=500,
+            )
+        
+        # 成功レスポンス
+        response_data = {
+            "ok": True,
+            "row_id": save_res["row_id"],
+            "request_id": request_id,
+            "inserted": save_res.get("inserted", False),
+            "preview": text,
+        }
+        
+        if not save_res.get("inserted"):
+            response_data["message"] = "既に登録済みのデータです（重複をスキップしました）"
+        
+        logger.info(f"[MEAL_IMAGE] Success, row_id={save_res['row_id']}, request_id={request_id}")
+        return response_data
+        
+    except Exception as e:
+        logger.error(f"[MEAL_IMAGE] Unexpected error: {e}, request_id={request_id}")
+        return JSONResponse(
+            {"ok": False, "error": str(e), "request_id": request_id},
+            status_code=500,
+        )
 
+@router.post("/meal")
+def ui_meal(body: MealIn, x_api_token: str | None = Header(None, alias="x-api-token")):
+    """テキスト食事記録（重複排除機能付き）"""
+    require_token(x_api_token)
+    
+    request_id = str(uuid.uuid4())
+    logger.info(f"[MEAL_TEXT] Start processing, request_id={request_id}")
+    
+    payload = body.dict()
+    payload["created_at"] = datetime.now(timezone.utc).isoformat()
+    payload["when_date"] = to_when_date_str(body.when)
+    payload["source"] = "text"
+    
+    # バリデーション
+    validation = validate_meal_data(payload)
+    if not validation["valid"]:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Validation failed",
+                "details": validation["errors"],
+                "request_id": request_id,
+            },
+            status_code=400,
+        )
+    
     try:
         save_res = save_meal_to_stores(payload, "demo")
-        dedup_key = save_res.get("dedup_key")
-        print(f"[INFO] meal saved request_id={request_id} dedup_key={dedup_key}")
-        return {
+        
+        response_data = {
             "ok": save_res["ok"],
+            "row_id": save_res["row_id"],
             "request_id": request_id,
-            "dedup_key": dedup_key,
-            "details": save_res,
+            "inserted": save_res.get("inserted", False),
         }
+        
+        if not save_res.get("inserted"):
+            response_data["message"] = "既に登録済みのデータです（重複をスキップしました）"
+        
+        logger.info(f"[MEAL_TEXT] Completed, row_id={save_res['row_id']}, request_id={request_id}")
+        return response_data
+        
     except Exception as e:
-        print(f"[ERROR] request_id={request_id} Failed to save meal: {e}")
+        logger.error(f"[MEAL_TEXT] Error: {e}, request_id={request_id}")
         return JSONResponse(
             {"ok": False, "error": str(e), "request_id": request_id},
             status_code=500,
