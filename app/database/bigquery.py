@@ -22,8 +22,13 @@ def bq_insert_rows(table: str, rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     try:
         row_ids: List[str] = []
         for row in rows:
-            # ingested_at のような挿入時刻は重複判定に含めない
-            row_copy = {k: v for k, v in row.items() if k != "ingested_at"}
+            # ingested_at やアップロードファイル固有の情報は重複判定に含めない
+            # 同じ食事画像を複数回送信した場合でも1行のみ登録されるようにする
+            row_copy = {
+                k: v
+                for k, v in row.items()
+                if k not in {"ingested_at", "file_name", "mime"}
+            }
             row_json = json.dumps(row_copy, sort_keys=True, ensure_ascii=False)
             row_ids.append(hashlib.sha256(row_json.encode()).hexdigest())
 
