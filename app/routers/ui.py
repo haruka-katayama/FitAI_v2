@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
 from app.models.profile import ProfileIn
 from app.models.meal import MealIn
-from app.services.meal_service import save_meal_to_stores, to_when_date_str  # 修正: インポート追加
+from app.services.meal_service import save_meal_to_stores, to_when_date_str
 from app.external.openai_client import vision_extract_meal_bytes
 from app.database.firestore import user_doc, get_latest_profile
 from app.database.bigquery import bq_upsert_profile
@@ -54,10 +54,11 @@ def ui_profile(body: ProfileIn, x_api_token: str | None = Header(None, alias="x-
     payload["updated_at"] = datetime.now(timezone.utc).isoformat()
     doc.set(payload, merge=True)
     
+    # BigQuery同期
     try:
         bq_res = bq_upsert_profile("demo")
         if not bq_res.get("ok"):
-            print(f"[ERROR] bq_upsert_profile failed: {bq_res}")
+            print(f"[WARN] bq_upsert_profile failed: {bq_res}")
     except Exception as e:
         print(f"[ERROR] bq_upsert_profile exception: {e}")
         bq_res = {"ok": False, "reason": repr(e)}
@@ -81,8 +82,12 @@ def ui_meal(body: MealIn, x_api_token: str | None = Header(None, alias="x-api-to
     payload["when_date"] = to_when_date_str(body.when)
     payload["source"] = "text"
     
-    save_meal_to_stores(payload, "demo")
-    return {"ok": True}
+    try:
+        save_meal_to_stores(payload, "demo")
+        return {"ok": True}
+    except Exception as e:
+        print(f"[ERROR] Failed to save meal: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 @router.post("/meal_image")
 async def ui_meal_image_no_store(
@@ -128,7 +133,7 @@ async def ui_meal_image_no_store(
         }
         save_meal_to_stores(payload, "demo")
     except Exception as e:
-        return JSONResponse({"ok": False, "where": "firestore", "error": repr(e),
+        return JSONResponse({"ok": False, "where": "storage", "error": repr(e),
                              "preview": text}, status_code=500)
     
     return {"ok": True, "preview": text}
