@@ -9,6 +9,7 @@ class Settings:
     BQ_TABLE_FITBIT: str = os.getenv("BQ_TABLE_FITBIT", "fitbit_daily")
     BQ_TABLE_MONTHLY: str = os.getenv("BQ_TABLE_MONTHLY", "monthly_reports")
     BQ_TABLE_PROFILES: str = os.getenv("BQ_TABLE_PROFILES", "profiles")
+    BQ_TABLE_CALORIE_DIFF: str = os.getenv("BQ_TABLE_CALORIE_DIFF", "calorie_difference_analysis")
     BQ_LOCATION: str = os.getenv("HP_BQ_LOCATION", "asia-northeast1")
     
     # Health Planet
