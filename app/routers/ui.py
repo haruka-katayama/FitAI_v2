@@ -1,42 +1,47 @@
-# app/routers/ui.py - 食事画像アップロード部分の修正
+# app/routers/ui.py
 
 from fastapi import APIRouter, HTTPException, Header, File, UploadFile, Form, Query
 from fastapi.responses import JSONResponse
-from datetime import datetime, timezone
-from app.models.profile import ProfileIn
+from datetime import datetime, timezone, timedelta
 from app.models.meal import MealIn
 from app.services.meal_service import save_meal_to_stores, to_when_date_str, validate_meal_data
 from app.external.openai_client import vision_extract_meal_bytes
-from app.database.firestore import user_doc, get_latest_profile
-from app.database.bigquery import bq_upsert_profile
+from app.database.firestore import user_doc
 from app.config import settings
 from app.utils.auth_utils import require_token
-import base64
 import hashlib
-import json
 import uuid
+import logging
 
 router = APIRouter(prefix="/ui", tags=["ui"])
+logger = logging.getLogger(__name__)
 
-# app/routers/ui.py - 食事画像アップロード部分の修正
+def _round_down_to_minute(dt: datetime) -> datetime:
+    return dt.replace(second=0, microsecond=0)
+
+def _resolve_user_id(x_user_id: str | None) -> str:
+    # 実運用では x-api-token からの復元/検証で user_id を得る。
+    # 暫定としてヘッダ優先→なければ "demo"
+    return x_user_id or "demo"
 
 @router.post("/meal_image")
 async def ui_meal_image(
     x_api_token: str | None = Header(None, alias="x-api-token"),
+    x_user_id: str | None = Header(None, alias="x-user-id"),
     when: str | None = Form(None),
     file: UploadFile = File(...),
     dry: bool = Query(False),
 ):
     """画像食事記録（重複排除機能付き）"""
     require_token(x_api_token)
-    
+    user_id = _resolve_user_id(x_user_id)
+
     request_id = str(uuid.uuid4())
-    logger.info(f"[MEAL_IMAGE] Start processing, request_id={request_id}")
-    
+    logger.info(f"[MEAL_IMAGE] start request_id={request_id} user_id={user_id}")
+
     data: bytes = await file.read()
     mime = file.content_type or "image/png"
-    
-    # Dry runモード
+
     if dry:
         return {
             "ok": True,
@@ -46,53 +51,50 @@ async def ui_meal_image(
             "mime": mime,
             "request_id": request_id,
         }
-    
-    # OpenAI API キー確認
+
     if not settings.OPENAI_API_KEY:
         return JSONResponse(
-            {
-                "ok": False,
-                "error": "OPENAI_API_KEY not set",
-                "request_id": request_id,
-            },
+            {"ok": False, "error": "OPENAI_API_KEY not set", "request_id": request_id},
             status_code=500,
         )
-    
-    # 処理時刻の統一
+
     processing_time = datetime.now(timezone.utc)
     when_iso = when or processing_time.isoformat(timespec="seconds")
-    
-    # 画像のダイジェスト生成（内容ベースの識別子）
+
+    # フルSHA-256（短縮しない）で画像ダイジェスト
     image_digest = hashlib.sha256(data).hexdigest()
-    
+
     try:
-        # OpenAI Vision APIで画像をテキスト化
-        logger.info(f"[MEAL_IMAGE] Calling OpenAI Vision, request_id={request_id}")
+        logger.info(f"[MEAL_IMAGE] calling OpenAI, request_id={request_id}")
         text = await vision_extract_meal_bytes(data, mime)
-        logger.info(f"[MEAL_IMAGE] OpenAI response received, request_id={request_id}")
-        
+        logger.info(f"[MEAL_IMAGE] OpenAI done, request_id={request_id}")
     except Exception as e:
-        logger.error(f"[MEAL_IMAGE] OpenAI error: {e}, request_id={request_id}")
+        logger.exception(f"[MEAL_IMAGE] OpenAI error request_id={request_id}")
         return JSONResponse(
             {"ok": False, "error": str(e), "request_id": request_id},
             status_code=500,
         )
-    
-    # 保存用データ準備
+
+    # 一貫したタイムスタンプと丸め
+    created_at = processing_time.isoformat()
+    when_dt = datetime.fromisoformat(when_iso.replace("Z", "+00:00"))
+    when_minute = _round_down_to_minute(when_dt).isoformat()
+
     payload = {
         "when": when_iso,
         "when_date": to_when_date_str(when_iso),
+        "when_minute": when_minute,  # サービス層の重複キー素材に使える
         "text": text,
-        "created_at": processing_time.isoformat(),
+        "created_at": created_at,
         "source": "image-bytes+gpt",
         "file_name": file.filename,
         "mime": mime,
-        "image_digest": image_digest,  # 重複検知用
-        "meal_kind": "other",  # デフォルト値
+        "image_digest": image_digest,   # ←一本化（短縮版は使わない）
+        "meal_kind": "other",
         "notes": "",
+        "user_id": user_id,             # ← payloadにも入れておく
     }
-    
-    # バリデーション
+
     validation = validate_meal_data(payload)
     if not validation["valid"]:
         return JSONResponse(
@@ -104,286 +106,89 @@ async def ui_meal_image(
             },
             status_code=400,
         )
-    
+
     try:
-        # データベースに保存（重複排除付き）
-        save_res = save_meal_to_stores(payload, "demo")
-        
+        save_res = save_meal_to_stores(payload, user_id)
         if not save_res["ok"]:
-            logger.error(f"[MEAL_IMAGE] Save failed: {save_res}, request_id={request_id}")
+            logger.error(f"[MEAL_IMAGE] save failed {save_res}, request_id={request_id}")
             return JSONResponse(
-                {
-                    "ok": False,
-                    "error": "Failed to save meal data",
-                    "details": save_res,
-                    "request_id": request_id,
-                },
+                {"ok": False, "error": "Failed to save meal data", "details": save_res, "request_id": request_id},
                 status_code=500,
             )
-        
-        # 成功レスポンス
-        response_data = {
+
+        resp = {
             "ok": True,
             "row_id": save_res["row_id"],
             "request_id": request_id,
             "inserted": save_res.get("inserted", False),
             "preview": text,
         }
-        
         if not save_res.get("inserted"):
-            response_data["message"] = "既に登録済みのデータです（重複をスキップしました）"
-        
-        logger.info(f"[MEAL_IMAGE] Success, row_id={save_res['row_id']}, request_id={request_id}")
-        return response_data
-        
+            resp["message"] = "既に登録済みのデータです（重複をスキップしました）"
+
+        logger.info(f"[MEAL_IMAGE] success row_id={save_res['row_id']} request_id={request_id}")
+        return resp
+
     except Exception as e:
-        logger.error(f"[MEAL_IMAGE] Unexpected error: {e}, request_id={request_id}")
-        return JSONResponse(
-            {"ok": False, "error": str(e), "request_id": request_id},
-            status_code=500,
-        )
+        logger.exception(f"[MEAL_IMAGE] unexpected error request_id={request_id}")
+        return JSONResponse({"ok": False, "error": str(e), "request_id": request_id}, status_code=500)
 
 @router.post("/meal")
-def ui_meal(body: MealIn, x_api_token: str | None = Header(None, alias="x-api-token")):
+def ui_meal(
+    body: MealIn,
+    x_api_token: str | None = Header(None, alias="x-api-token"),
+    x_user_id: str | None = Header(None, alias="x-user-id"),
+):
     """テキスト食事記録（重複排除機能付き）"""
     require_token(x_api_token)
-    
+    user_id = _resolve_user_id(x_user_id)
+
     request_id = str(uuid.uuid4())
-    logger.info(f"[MEAL_TEXT] Start processing, request_id={request_id}")
-    
+    logger.info(f"[MEAL_TEXT] start request_id={request_id} user_id={user_id}")
+
     payload = body.dict()
     payload["created_at"] = datetime.now(timezone.utc).isoformat()
     payload["when_date"] = to_when_date_str(body.when)
     payload["source"] = "text"
-    
-    # バリデーション
+    payload["user_id"] = user_id
+
     validation = validate_meal_data(payload)
     if not validation["valid"]:
         return JSONResponse(
-            {
-                "ok": False,
-                "error": "Validation failed",
-                "details": validation["errors"],
-                "request_id": request_id,
-            },
+            {"ok": False, "error": "Validation failed", "details": validation["errors"], "request_id": request_id},
             status_code=400,
         )
-    
+
     try:
-        save_res = save_meal_to_stores(payload, "demo")
-        
-        response_data = {
+        save_res = save_meal_to_stores(payload, user_id)
+        resp = {
             "ok": save_res["ok"],
             "row_id": save_res["row_id"],
             "request_id": request_id,
             "inserted": save_res.get("inserted", False),
         }
-        
         if not save_res.get("inserted"):
-            response_data["message"] = "既に登録済みのデータです（重複をスキップしました）"
-        
-        logger.info(f"[MEAL_TEXT] Completed, row_id={save_res['row_id']}, request_id={request_id}")
-        return response_data
-        
+            resp["message"] = "既に登録済みのデータです（重複をスキップしました）"
+
+        logger.info(f"[MEAL_TEXT] done row_id={save_res['row_id']} request_id={request_id}")
+        return resp
+
     except Exception as e:
-        logger.error(f"[MEAL_TEXT] Error: {e}, request_id={request_id}")
-        return JSONResponse(
-            {"ok": False, "error": str(e), "request_id": request_id},
-            status_code=500,
-        )
+        logger.exception(f"[MEAL_TEXT] error request_id={request_id}")
+        return JSONResponse({"ok": False, "error": str(e), "request_id": request_id}, status_code=500)
 
-@router.post("/meal_image")
-async def ui_meal_image_no_store(
+# ⭐ プレビュー専用：保存なし
+@router.post("/meal_image/preview")
+async def ui_meal_image_preview(
     x_api_token: str | None = Header(None, alias="x-api-token"),
-    when: str | None = Form(None),
     file: UploadFile = File(...),
-    dry: bool = Query(False),
 ):
-    """画像食事記録（重複排除機能付き）"""
     require_token(x_api_token)
-
-    request_id = str(uuid.uuid4())
     data: bytes = await file.read()
     mime = file.content_type or "image/png"
 
-    # Dry runモード（テスト用）
-    if dry:
-        return {
-            "ok": True,
-            "stage": "received",
-            "file_name": file.filename,
-            "size": len(data),
-            "mime": mime,
-            "request_id": request_id,
-        }
-
-    # OpenAI API キー確認
     if not settings.OPENAI_API_KEY:
-        return JSONResponse(
-            {
-                "ok": False,
-                "where": "openai_api_key",
-                "error": "OPENAI_API_KEY not set",
-                "request_id": request_id,
-            },
-            status_code=500,
-        )
+        return JSONResponse({"ok": False, "error": "OPENAI_API_KEY not set"}, status_code=500)
 
-    # 処理開始時刻を記録（一貫性のため）
-    processing_start_time = datetime.now(timezone.utc)
-    when_iso = when or processing_start_time.isoformat(timespec="seconds")
-
-    # 重複チェック用のキーを事前に生成
-    dedup_preview_data = {
-        "user_id": "demo",
-        "when_date": to_when_date_str(when_iso),
-        "when_rounded": when_iso[:16],  # 分単位で丸める
-        "file_size": len(data),
-        "mime": mime,
-    }
-
-    # 画像のハッシュを生成（同じ画像の重複投稿検知用）
-    image_hash = hashlib.sha256(data).hexdigest()[:16]  # 短縮版
-    dedup_preview_data["image_hash"] = image_hash
-
-    try:
-        # 画像をOpenAI APIに送信してテキスト化
-        print(
-            f"[INFO] Processing meal image: {file.filename}, size: {len(data)} bytes, request_id={request_id}"
-        )
-        text = await vision_extract_meal_bytes(data, mime)
-        print(f"[INFO] OpenAI response: {text[:100]}... request_id={request_id}")
-
-    except Exception as e:
-        print(f"[ERROR] request_id={request_id} OpenAI processing failed: {e}")
-        return JSONResponse(
-            {"ok": False, "where": "openai", "error": repr(e), "request_id": request_id},
-            status_code=500,
-        )
-
-    # 保存用データの準備（統一されたタイムスタンプを使用）
-    save_timestamp = processing_start_time.isoformat()
-
-    payload = {
-        "when": when_iso,
-        "when_date": to_when_date_str(when_iso),
-        "text": text,
-        "created_at": save_timestamp,  # 統一されたタイムスタンプ
-        "source": "image-bytes+gpt",
-        "file_name": file.filename,
-        "mime": mime,
-        "image_hash": image_hash,  # 重複検知用のハッシュを追加
-        "processing_metadata": {
-            "file_size": len(data),
-            "processing_duration_ms": int(
-                (datetime.now(timezone.utc) - processing_start_time).total_seconds() * 1000
-            ),
-        },
-    }
-
-    # データバリデーション
-    validation = validate_meal_data(payload)
-    if not validation["valid"]:
-        return JSONResponse(
-            {
-                "ok": False,
-                "where": "validation",
-                "error": "Invalid data",
-                "details": validation["errors"],
-                "request_id": request_id,
-            },
-            status_code=400,
-        )
-
-    try:
-        # データベースに保存
-        print(f"[INFO] Saving meal data to stores... request_id={request_id}")
-        save_res = save_meal_to_stores(payload, "demo")
-        dedup_key = save_res.get("dedup_key")
-
-        # 保存結果をログ出力（デバッグ用）
-        print(
-            f"[INFO] Save result request_id={request_id} dedup_key={dedup_key} - Overall: {save_res.get('ok')}, Firestore: {save_res.get('firestore', {}).get('ok')}, BigQuery: {save_res.get('bigquery', {}).get('ok')}"
-        )
-
-    except Exception as e:
-        print(f"[ERROR] request_id={request_id} Storage operation failed: {e}")
-        return JSONResponse(
-            {"ok": False, "where": "storage", "error": repr(e), "request_id": request_id},
-            status_code=500,
-        )
-
-    # BigQuery保存が失敗した場合の処理
-    bq_result = save_res.get("bigquery", {})
-    if not bq_result.get("ok"):
-        bq_errors = bq_result.get("errors", [])
-        error_msg = bq_result.get("error", "Unknown BigQuery error")
-
-        print(f"[ERROR] request_id={request_id} BigQuery save failed: {error_msg}")
-        if bq_errors:
-            print(f"[ERROR] request_id={request_id} BigQuery errors detail: {bq_errors}")
-
-        # BigQuery失敗でもプレビューは返す（ユーザー体験のため）
-        return JSONResponse(
-            {
-                "ok": False,
-                "where": "bigquery_storage",
-                "error": f"BigQuery save failed: {error_msg}",
-                "preview": text,
-                "firestore_ok": save_res.get("firestore", {}).get("ok"),
-                "bigquery_errors": bq_errors,
-                "request_id": request_id,
-                "dedup_key": dedup_key,
-            },
-            status_code=500,
-        )
-
-    # Firestore保存が失敗した場合は警告ログのみ（処理は継続）
-    if not save_res.get("firestore", {}).get("ok"):
-        firestore_error = save_res.get("firestore", {}).get("error")
-        print(f"[WARN] request_id={request_id} Firestore meal save failed: {firestore_error}")
-
-    # 成功レスポンス
-    return {
-        "ok": True,
-        "preview": text,
-        "saved_to": {
-            "firestore": save_res.get("firestore", {}).get("ok"),
-            "bigquery": save_res.get("bigquery", {}).get("ok"),
-        },
-        "image_hash": image_hash,
-        "dedup_key": dedup_key,
-        "request_id": request_id,
-        "processing_time_ms": payload["processing_metadata"]["processing_duration_ms"],
-    }
-
-# デバッグ用エンドポイント
-@router.get("/meal_debug/recent")
-def ui_meal_debug_recent(
-    x_api_token: str | None = Header(None, alias="x-api-token"),
-    limit: int = Query(10)
-):
-    """最近の食事記録をデバッグ用に取得"""
-    require_token(x_api_token)
-    
-    try:
-        # Firestoreから最近の食事記録を取得
-        meals_ref = user_doc("demo").collection("meals").order_by("created_at", direction="DESCENDING").limit(limit)
-        meals = []
-        
-        for doc in meals_ref.stream():
-            meal_data = doc.to_dict()
-            meals.append({
-                "id": doc.id,
-                "when": meal_data.get("when"),
-                "text": meal_data.get("text", "")[:100],  # 最初の100文字のみ
-                "source": meal_data.get("source"),
-                "created_at": meal_data.get("created_at"),
-                "image_hash": meal_data.get("image_hash"),
-            })
-        
-        return {"ok": True, "meals": meals, "count": len(meals)}
-        
-    except Exception as e:
-        print(f"[ERROR] Debug query failed: {e}")
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+    text = await vision_extract_meal_bytes(data, mime)
+    return {"ok": True, "preview": text, "size": len(data), "mime": mime}
