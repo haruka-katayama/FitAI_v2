@@ -231,7 +231,6 @@ def bq_upsert_profile(user_id: str = "demo") -> Dict[str, Any]:
         return {"ok": False, "error": str(e), "user_id": user_id}
 
 def bq_upsert_fitbit_days(user_id: str, days: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Fitbit日次データをBigQueryに保存（標準のINSERTを使用）"""
     if not bq_client or not days:
         return {"ok": False, "reason": "bq disabled or empty"}
 
@@ -244,13 +243,13 @@ def bq_upsert_fitbit_days(user_id: str, days: List[Dict[str, Any]]) -> Dict[str,
     table_id = f"{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_FITBIT}"
     
     rows = []
+    row_ids = []
     for d in days:
         if not d.get("date"):
             continue
-            
         row = {
             "user_id": user_id,
-            "date": d["date"],  # "YYYY-MM-DD"
+            "date": d["date"],                     # "YYYY-MM-DD"
             "steps_total": to_int(d.get("steps_total", 0)),
             "sleep_line": d.get("sleep_line", ""),
             "spo2_line": d.get("spo2_line", ""),
@@ -258,33 +257,18 @@ def bq_upsert_fitbit_days(user_id: str, days: List[Dict[str, Any]]) -> Dict[str,
             "ingested_at": datetime.now(timezone.utc).isoformat(),
         }
         rows.append(row)
+        # 同一 user_id + date で同一IDを使う（idempotent）
+        row_ids.append(f"{user_id}|{row['date']}")
 
     if not rows:
         return {"ok": True, "reason": "no data to insert", "count": 0}
 
     try:
-        # 既存データを削除してから挿入（UPSERT的な動作）
-        dates_to_delete = [row["date"] for row in rows]
-        date_list = "', '".join(dates_to_delete)
-        delete_query = f"""
-        DELETE FROM `{table_id}` 
-        WHERE user_id = '{user_id}' 
-          AND date IN ('{date_list}')
-        """
-        
-        delete_job = bq_client.query(delete_query)
-        delete_job.result()
-        
-        # 新しいデータを挿入
-        errors = bq_client.insert_rows_json(table_id, rows, ignore_unknown_values=True)
-        
-        return {
-            "ok": not bool(errors), 
-            "errors": errors, 
-            "count": len(rows),
-            "deleted": delete_job.num_dml_affected_rows
-        }
-        
+        errors = bq_client.insert_rows_json(
+            table_id, rows, row_ids=row_ids, ignore_unknown_values=True
+        )
+        return {"ok": not bool(errors), "errors": errors, "count": len(rows)}
     except Exception as e:
         print(f"[ERROR] Fitbit upsert failed: {e}")
         return {"ok": False, "error": str(e), "count": 0}
+
