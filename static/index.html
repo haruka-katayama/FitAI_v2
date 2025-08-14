@@ -1534,12 +1534,25 @@
                         });
                     }
 
+                    const responseClone = response.clone();
+
                     if (!response.ok) {
-                        throw new Error(`Upload failed: ${response.status}`);
+                        const text = await response.text();
+                        const error = new Error(`Upload failed: ${response.status}`);
+                        error.serverResponse = text;
+                        throw error;
                     }
 
-                    const result = await response.json();
-                    
+                    let result;
+                    try {
+                        result = await response.json();
+                    } catch (parseError) {
+                        const text = await responseClone.text();
+                        const error = new Error(`Invalid JSON response: ${parseError.message}`);
+                        error.serverResponse = text;
+                        throw error;
+                    }
+
                     if (result.ok) {
                         this.showStatus('meal-status', '✅ アップロード完了', 'success');
                         
@@ -1570,11 +1583,14 @@
                         // フォームリセット
                         this.resetMealForm();
                     } else {
-                        throw new Error(result.error || 'Unknown error');
+                        const error = new Error(result.error || 'Unknown error');
+                        error.serverResponse = JSON.stringify(result);
+                        throw error;
                     }
 
                 } catch (error) {
-                    this.showStatus('meal-status', `❌ アップロードに失敗しました: ${error.message}`, 'error');
+                    const details = error.serverResponse ? `\nサーバー詳細: ${error.serverResponse}` : '';
+                    this.showStatus('meal-status', `❌ アップロードに失敗しました: ${error.message}${details}`, 'error');
                 } finally {
                     uploadBtn.disabled = false;
                     uploadBtn.innerHTML = '🚀 食事を登録する';
