@@ -453,16 +453,30 @@
         }
 
         /* 既往歴の多項目選択 */
-        .multiselect-container {
+        .multiselect-dropdown {
+            position: relative;
+        }
+
+        .multiselect-selected {
             border: 2px solid #e1e5e9;
             border-radius: 10px;
-            padding: 15px;
+            padding: 10px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .multiselect-options {
+            position: absolute;
+            top: calc(100% + 5px);
+            left: 0;
+            width: 100%;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
             max-height: 250px;
             overflow-y: auto;
             background: white;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 8px;
+            z-index: 1000;
+            display: none;
         }
 
         .multiselect-option {
@@ -828,8 +842,11 @@
 
                     <div class="form-group">
                         <label>既往歴（該当を選択※複数選択可）</label>
-                        <div class="multiselect-container" id="past-history-container">
-                            <!-- 動的に生成 -->
+                        <div class="multiselect-dropdown">
+                            <div class="multiselect-selected" id="past-history-selected">選択してください</div>
+                            <div class="multiselect-options" id="past-history-options">
+                                <!-- 動的に生成 -->
+                            </div>
                         </div>
                     </div>
 
@@ -1145,8 +1162,9 @@
 
             // 既往歴マルチセレクト設定
             setupPastHistoryMultiselect() {
-                const container = document.getElementById('past-history-container');
-                container.innerHTML = '';
+                const optionsContainer = document.getElementById('past-history-options');
+                const selectedDisplay = document.getElementById('past-history-selected');
+                optionsContainer.innerHTML = '';
 
                 this.pastHistoryOptions.forEach(option => {
                     const div = document.createElement('div');
@@ -1156,7 +1174,6 @@
                         <label for="past-${option.value}">${option.label}</label>
                     `;
 
-                    // チェックボックスの変更を監視
                     const checkbox = div.querySelector('input');
                     checkbox.addEventListener('change', () => {
                         if (checkbox.checked) {
@@ -1164,18 +1181,42 @@
                         } else {
                             div.classList.remove('selected');
                         }
+                        this.updatePastHistorySelected();
                     });
 
-                    // ラベルクリックでもチェックボックスを切り替え
                     div.addEventListener('click', (e) => {
-                      // 入力そのものとラベルクリックはスルー（ネイティブ挙動のみ）
                       if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
                       checkbox.checked = !checkbox.checked;
                       checkbox.dispatchEvent(new Event('change', { bubbles: true }));
                     });
 
-                    container.appendChild(div);
+                    optionsContainer.appendChild(div);
                 });
+
+                selectedDisplay.addEventListener('click', () => {
+                    optionsContainer.style.display = optionsContainer.style.display === 'block' ? 'none' : 'block';
+                });
+
+                document.addEventListener('click', (e) => {
+                    if (!optionsContainer.contains(e.target) && e.target !== selectedDisplay) {
+                        optionsContainer.style.display = 'none';
+                    }
+                });
+
+                this.updatePastHistorySelected();
+            }
+
+            updatePastHistorySelected() {
+                const selectedDisplay = document.getElementById('past-history-selected');
+                if (!selectedDisplay) return;
+                const selectedLabels = [];
+                this.pastHistoryOptions.forEach(option => {
+                    const checkbox = document.getElementById(`past-${option.value}`);
+                    if (checkbox && checkbox.checked) {
+                        selectedLabels.push(option.label);
+                    }
+                });
+                selectedDisplay.textContent = selectedLabels.length ? selectedLabels.join('、') : '選択してください';
             }
 
             // 食事アップロード設定
@@ -1357,6 +1398,7 @@
                                 checkbox.closest('.multiselect-option').classList.add('selected');
                             }
                         });
+                        this.updatePastHistorySelected();
                     }
 
                 } catch (error) {
