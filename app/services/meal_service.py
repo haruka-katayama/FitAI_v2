@@ -2,8 +2,8 @@
 
 import hashlib
 import json
-from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Any
+from datetime import datetime, timezone
+from typing import Dict, Any
 from app.database.firestore import user_doc
 from app.database.bigquery import bq_client
 from app.config import settings

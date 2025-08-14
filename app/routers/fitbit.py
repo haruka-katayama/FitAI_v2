@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from fastapi.responses import RedirectResponse, JSONResponse
-from app.external.fitbit_client import get_redirect_uri, fitbit_exchange_code, get_fitbit_access_token
+from app.external.fitbit_client import get_redirect_uri, fitbit_exchange_code
 from app.services.fitbit_service import fitbit_today_core, fitbit_last_n_days, save_fitbit_daily_firestore, save_last7_fitbit_to_stores
 from app.database.firestore import fitbit_token_doc
 from app.external.line_client import push_line

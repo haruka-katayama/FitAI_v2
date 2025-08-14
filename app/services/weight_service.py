@@ -1,4 +1,4 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from app.external.healthplanet_client import fetch_innerscan_data, get_access_token, jst_now, format_datetime
 from app.database.firestore import user_doc

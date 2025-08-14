@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
-from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Any, Optional
+from datetime import datetime, timedelta
+from typing import Dict, List, Any
 from google.cloud import bigquery
 from app.database.bigquery import bq_client
 from app.config import settings
@@ -205,7 +205,7 @@ async def get_weight_dashboard_data(
             }
         }
         
-    except Exception as e:
+    except Exception:
         # Health Planetデータがない場合は空のデータを返す
         return {
             "ok": True,
