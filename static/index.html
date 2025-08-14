@@ -1168,10 +1168,10 @@
 
                     // ラベルクリックでもチェックボックスを切り替え
                     div.addEventListener('click', (e) => {
-                        if (e.target.tagName !== 'INPUT') {
-                            checkbox.checked = !checkbox.checked;
-                            checkbox.dispatchEvent(new Event('change'));
-                        }
+                      // 入力そのものとラベルクリックはスルー（ネイティブ挙動のみ）
+                      if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') return;
+                      checkbox.checked = !checkbox.checked;
+                      checkbox.dispatchEvent(new Event('change', { bubbles: true }));
                     });
 
                     container.appendChild(div);
