@@ -1050,19 +1050,16 @@
                 this.initializeApp();
             }
 
+
             // アプリケーション初期化
             initializeApp() {
                 this.setupEventListeners();
                 this.setupPWA();
                 this.setupPastHistoryMultiselect();
+                this.loadProfile();
                 this.setupMealUpload();
                 this.initializeDashboard();
-                
-                // 初期ページの設定（イベントリスナー設定前に）
-                this.setInitialPage();
-                
-                // プロフィール読み込み
-                this.loadProfile();
+                this.restoreState();
                 
                 // デフォルトの日付設定
                 const today = new Date();
