@@ -1574,8 +1574,6 @@
                             grid: { color: 'rgba(0, 0, 0, 0.1)' }
                         },
                         y: {
-                            ticks: { color: '#666' },
-                            grid: { color: 'rgba(0, 0, 0, 0.1)' },
                             title: {
                                 display: true,
                                 text: yAxisLabel,
@@ -1599,14 +1597,28 @@
                 this.showStatus('dashboard-status', '📊 データ取得中...', 'warning');
 
                 try {
-                    // モックデータ生成（実際のAPIエンドポイントに置き換える）
-                    const data = this.generateMockDashboardData(startDate, endDate);
+                    // 実際のAPIエンドポイントからデータを取得
+                    const response = await this.apiCall(`/dashboard/summary?start_date=${startDate}&end_date=${endDate}&user_id=demo`);
                     
-                    this.updateCharts(data);
+                    if (!response.ok) {
+                        throw new Error(response.error || 'データ取得に失敗しました');
+                    }
+                    
+                    this.updateCharts(response.data);
                     this.showStatus('dashboard-status', '✅ ダッシュボードを更新しました', 'success');
 
                 } catch (error) {
+                    console.error('Dashboard update failed:', error);
                     this.showStatus('dashboard-status', `❌ データ取得に失敗しました: ${error.message}`, 'error');
+                    
+                    // フォールバック: モックデータを使用
+                    try {
+                        const mockData = this.generateMockDashboardData(startDate, endDate);
+                        this.updateCharts(mockData);
+                        this.showStatus('dashboard-status', '⚠️ モックデータを表示中（APIエラーのため）', 'warning');
+                    } catch (mockError) {
+                        this.showStatus('dashboard-status', '❌ データ表示に失敗しました', 'error');
+                    }
                 }
             }
 
@@ -1648,31 +1660,41 @@
 
             // チャート更新
             updateCharts(data) {
+                // データの検証
+                if (!data || !data.dates || !Array.isArray(data.dates)) {
+                    console.error('Invalid data structure:', data);
+                    throw new Error('データの形式が正しくありません');
+                }
+
                 // カロリーチャート
                 this.charts.calorie.data.labels = data.dates;
-                this.charts.calorie.data.datasets[0].data = data.take_in_calories;
-                this.charts.calorie.data.datasets[1].data = data.consumption_calories;
+                this.charts.calorie.data.datasets[0].data = data.take_in_calories || [];
+                this.charts.calorie.data.datasets[1].data = data.consumption_calories || [];
                 this.charts.calorie.update();
 
                 // 体重変化チャート
                 this.charts.weightChange.data.labels = data.dates;
-                this.charts.weightChange.data.datasets[0].data = data.weight_change_kg;
+                this.charts.weightChange.data.datasets[0].data = data.weight_change_kg || [];
                 this.charts.weightChange.update();
 
                 // 体重チャート
                 this.charts.weight.data.labels = data.dates;
-                this.charts.weight.data.datasets[0].data = data.weight_kg;
+                this.charts.weight.data.datasets[0].data = data.weight_kg || [];
                 this.charts.weight.update();
 
                 // 体重変化サマリー
-                const totalChange = data.weight_change_kg.reduce((sum, change) => sum + change, 0);
-                const changeElement = document.getElementById('total-weight-change');
-                if (totalChange > 0) {
-                    changeElement.textContent = `+${totalChange.toFixed(1)}kg`;
-                    changeElement.style.color = '#dc3545';
-                } else {
-                    changeElement.textContent = `${totalChange.toFixed(1)}kg`;
-                    changeElement.style.color = '#28a745';
+                if (data.weight_change_kg && data.weight_change_kg.length > 0) {
+                    const totalChange = data.weight_change_kg.reduce((sum, change) => sum + (change || 0), 0);
+                    const changeElement = document.getElementById('total-weight-change');
+                    if (changeElement) {
+                        if (totalChange > 0) {
+                            changeElement.textContent = `+${totalChange.toFixed(1)}kg`;
+                            changeElement.style.color = '#dc3545';
+                        } else {
+                            changeElement.textContent = `${totalChange.toFixed(1)}kg`;
+                            changeElement.style.color = '#28a745';
+                        }
+                    }
                 }
             }
 
