@@ -3,7 +3,7 @@
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any
 from app.database.firestore import user_doc
-from app.database.bigquery import bq_client
+from app.database.bigquery import bq_client, bq_insert_rows
 from app.config import settings
 
 def to_when_date_str(iso_str: str | None) -> str:
@@ -90,8 +90,12 @@ def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dic
         "source": meal_data.get("source", "text"),
         "file_name": meal_data.get("file_name"),
         "mime": meal_data.get("mime"),
+        "meal_kind": meal_data.get("meal_kind"),
+        "image_digest": meal_data.get("image_digest"),
+        "notes": meal_data.get("notes"),
         "ingested_at": current_time,  # 統一されたタイムスタンプを使用
         "created_at": current_time,   # created_atも同じ値に統一
+        "dedup_key": dedup_key,
     }
 
     try:
@@ -133,8 +137,8 @@ def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dic
         "dedup_info": {
             "user_id": user_id,
             "when_date": meal_data["when_date"],
-            "text_preview": meal_data["text"][:50] + "..." if len(meal_data["text"]) > 50 else meal_data["text"]
-        }
+            "text_preview": meal_data["text"][:50] + "..." if len(meal_data["text"]) > 50 else meal_data["text"],
+        },
     }
 
 def create_meal_dedup_key(meal_data: Dict[str, Any], user_id: str) -> str:
@@ -148,6 +152,9 @@ def create_meal_dedup_key(meal_data: Dict[str, Any], user_id: str) -> str:
         "when_date": meal_data.get("when_date"),
         "text": meal_data.get("text"),
         "source": meal_data.get("source"),
+        "meal_kind": meal_data.get("meal_kind"),
+        "image_digest": meal_data.get("image_digest"),
+        "notes": meal_data.get("notes"),
         # 時刻は分単位で丸める（秒の違いによる重複を防ぐ）
         "when_rounded": meal_data.get("when", "")[:16] if meal_data.get("when") else ""
     }
@@ -172,11 +179,21 @@ def validate_meal_data(meal_data: Dict[str, Any]) -> Dict[str, Any]:
             float(meal_data["kcal"])
         except (ValueError, TypeError):
             errors.append("kcal must be a valid number")
-    
+
+    # 文字列型のチェック
+    str_fields = ["meal_kind", "image_digest", "notes"]
+    for field in str_fields:
+        if meal_data.get(field) is not None and not isinstance(meal_data.get(field), str):
+            errors.append(f"{field} must be a string")
+
     # テキストの長さチェック
     text = meal_data.get("text", "")
     if len(text) > 1000:  # 制限を設定
         errors.append("text is too long (max 1000 characters)")
+
+    notes = meal_data.get("notes") or ""
+    if len(notes) > 1000:
+        errors.append("notes is too long (max 1000 characters)")
     
     return {"valid": len(errors) == 0, "errors": errors}
 
