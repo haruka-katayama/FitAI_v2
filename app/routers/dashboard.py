@@ -214,90 +214,101 @@ async def get_dashboard_summary(
     end_date: str = Query(..., description="終了日 (YYYY-MM-DD)"),
     user_id: str = Query("demo", description="ユーザーID")
 ):
-    """ダッシュボード統合データを取得"""
+    """BigQuery からダッシュボード用データを取得"""
+    if not bq_client:
+        return JSONResponse({"ok": False, "error": "BigQuery not configured"}, status_code=500)
+
     try:
-        # 各エンドポイントからデータを取得
-        fitbit_response = await get_fitbit_dashboard_data(start_date, end_date, user_id)
-        meals_response = await get_meals_dashboard_data(start_date, end_date, user_id)
-        weight_response = await get_weight_dashboard_data(start_date, end_date, user_id)
-        
-        # レスポンスが JSONResponse の場合はエラー
-        if isinstance(fitbit_response, JSONResponse) or isinstance(meals_response, JSONResponse) or isinstance(weight_response, JSONResponse):
-            return JSONResponse({"ok": False, "error": "Failed to fetch some data"}, status_code=500)
-        
-        if not all([fitbit_response.get("ok"), meals_response.get("ok"), weight_response.get("ok")]):
-            return JSONResponse({"ok": False, "error": "Failed to fetch some data"}, status_code=500)
-        
-        # 統合データの作成
-        fitbit = fitbit_response["data"]
-        meals = meals_response["data"]
-        weight = weight_response["data"]
-        
-        # 期間内の全日付を作成
+        # カロリー収支と体重変化の取得
+        analysis_query = f"""
+        SELECT
+            date,
+            take_in_calories,
+            consumption_calories,
+            weight_change_kg
+        FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_CALORIE_DIFF}`
+        WHERE user_id = @user_id
+          AND date BETWEEN @start_date AND @end_date
+        ORDER BY date ASC
+        """
+
+        analysis_config = bigquery.QueryJobConfig(query_parameters=[
+            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
+            bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
+        ])
+
+        analysis_job = bq_client.query(analysis_query, job_config=analysis_config)
+        analysis_rows = list(analysis_job.result())
+
+        analysis_by_date = {
+            row.date.strftime("%Y-%m-%d"): {
+                "take_in_calories": float(row.take_in_calories) if row.take_in_calories is not None else 0,
+                "consumption_calories": float(row.consumption_calories) if row.consumption_calories is not None else 0,
+                "weight_change_kg": float(row.weight_change_kg) if row.weight_change_kg is not None else 0,
+            }
+            for row in analysis_rows
+        }
+
+        # 体重データの取得
+        weight_query = f"""
+        SELECT
+            DATE(measured_at) as date,
+            value as weight_kg
+        FROM `{settings.HP_BQ_TABLE}`
+        WHERE user_id = @user_id
+          AND tag = '6021'
+          AND DATE(measured_at) BETWEEN @start_date AND @end_date
+        ORDER BY measured_at ASC
+        """
+
+        weight_config = bigquery.QueryJobConfig(query_parameters=[
+            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
+            bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
+        ])
+
+        weight_job = bq_client.query(weight_query, job_config=weight_config)
+        weight_rows = list(weight_job.result())
+
+        weight_by_date = {
+            row.date.strftime("%Y-%m-%d"): float(row.weight_kg)
+            for row in weight_rows
+        }
+
+        # 期間内の全日付リストを作成
         start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
         end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
-        
         all_dates = []
-        current_date = start_dt
-        while current_date <= end_dt:
-            all_dates.append(current_date.strftime("%Y-%m-%d"))
-            current_date += timedelta(days=1)
-        
-        # データをマージ
-        consumption_calories = []
-        take_in_calories = []
-        weight_changes = []
+        current = start_dt
+        while current <= end_dt:
+            all_dates.append(current.strftime("%Y-%m-%d"))
+            current += timedelta(days=1)
+
+        # 日付ごとのデータ配列を作成
+        take_in = []
+        consumption = []
+        weight_change = []
         weights = []
-        
-        # Fitbitデータをインデックス化
-        fitbit_by_date = {date: {"steps": steps, "calories": cals} 
-                         for date, steps, cals in zip(fitbit["dates"], fitbit["steps_total"], fitbit["calories_total"])}
-        
-        # 食事データをインデックス化
-        meals_by_date = {date: cals for date, cals in zip(meals["dates"], meals["take_in_calories"])}
-        
-        # 体重データをインデックス化
-        weight_by_date = {date: weight_val for date, weight_val in zip(weight["dates"], weight["weight_kg"])}
-        
-        previous_weight = None
-        last_known_weight = None
-        
-        for date in all_dates:
-            # 消費カロリー
-            consumption_calories.append(fitbit_by_date.get(date, {}).get("calories", 0))
-            
-            # 摂取カロリー
-            take_in_calories.append(meals_by_date.get(date, 0))
-            
-            # 体重処理
-            if date in weight_by_date:
-                current_weight = weight_by_date[date]
-                last_known_weight = current_weight
-            else:
-                current_weight = last_known_weight  # 最後に知られている体重を使用
-            
-            weights.append(current_weight if current_weight is not None else 0)
-            
-            # 体重変化計算
-            if previous_weight is not None and current_weight is not None:
-                weight_changes.append(current_weight - previous_weight)
-            else:
-                weight_changes.append(0)
-            
-            if current_weight is not None:
-                previous_weight = current_weight
-        
+
+        for d in all_dates:
+            analysis = analysis_by_date.get(d, {})
+            take_in.append(analysis.get("take_in_calories", 0))
+            consumption.append(analysis.get("consumption_calories", 0))
+            weight_change.append(analysis.get("weight_change_kg", 0))
+            weights.append(weight_by_date.get(d, 0))
+
         return {
             "ok": True,
             "data": {
                 "dates": all_dates,
-                "consumption_calories": consumption_calories,
-                "take_in_calories": take_in_calories,
-                "weight_change_kg": weight_changes,
+                "take_in_calories": take_in,
+                "consumption_calories": consumption,
+                "weight_change_kg": weight_change,
                 "weight_kg": weights,
-                "steps_total": [fitbit_by_date.get(date, {}).get("steps", 0) for date in all_dates]
-            }
+                "steps_total": [],
+            },
         }
-        
+
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
