@@ -1064,11 +1064,10 @@
                 const today = new Date();
                 const sevenDaysAgo = new Date(today);
                 sevenDaysAgo.setDate(today.getDate() - 6);
-                
+
                 document.getElementById('start-date').value = this.formatDate(sevenDaysAgo);
                 document.getElementById('end-date').value = this.formatDate(today);
-                document.getElementById('meal-date').value = this.formatDate(today);
-                document.getElementById('meal-time').value = new Date().toTimeString().slice(0, 5);
+                this.setDefaultMealDateTime();
             }
 
             // イベントリスナー設定
@@ -1576,6 +1575,20 @@
                 }
             }
 
+            // 日付・時刻の初期値を日本時間で設定
+            setDefaultMealDateTime() {
+                const now = new Date();
+                document.getElementById('meal-date').value =
+                    now.toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+                document.getElementById('meal-time').value =
+                    now.toLocaleTimeString('en-GB', {
+                        timeZone: 'Asia/Tokyo',
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+            }
+
             // 食事フォームリセット
             resetMealForm() {
                 this.selectedFile = null;
@@ -1583,6 +1596,7 @@
                 document.getElementById('meal-memo').value = '';
                 document.getElementById('file-input').value = '';
                 document.getElementById('upload-btn').disabled = true;
+                this.setDefaultMealDateTime();
             }
 
             // AIコーチング実行
