@@ -42,6 +42,12 @@ async def ui_meal_image(
     data: bytes = await file.read()
     mime = file.content_type or "image/png"
 
+    if len(data) == 0:
+        return JSONResponse(
+            {"ok": False, "error": "Empty file", "request_id": request_id},
+            status_code=400,
+        )
+
     if dry:
         return {
             "ok": True,
@@ -188,6 +194,9 @@ async def ui_meal_image_preview(
     require_token(x_api_token)
     data: bytes = await file.read()
     mime = file.content_type or "image/png"
+
+    if len(data) == 0:
+        return JSONResponse({"ok": False, "error": "Empty file"}, status_code=400)
 
     if not settings.OPENAI_API_KEY:
         return JSONResponse({"ok": False, "error": "OPENAI_API_KEY not set"}, status_code=500)
