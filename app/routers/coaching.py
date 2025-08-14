@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from app.services.coaching_service import daily_coaching, weekly_coaching, monthly_coaching, build_daily_prompt
+from app.services.coaching_service import weekly_coaching, monthly_coaching, build_daily_prompt
 from app.external.openai_client import ask_gpt
 from app.external.line_client import push_line
 from app.config import settings

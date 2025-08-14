@@ -2,7 +2,7 @@
 
 from google.cloud import bigquery
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from app.config import settings
 import hashlib
 import json

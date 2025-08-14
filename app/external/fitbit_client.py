@@ -1,7 +1,7 @@
 import asyncio
 import base64
 import httpx
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from app.config import settings
 from app.database.firestore import fitbit_token_doc
 
