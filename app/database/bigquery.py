@@ -1,3 +1,5 @@
+# app/database/bigquery.py - 修正版
+
 from google.cloud import bigquery
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
@@ -22,20 +24,45 @@ def bq_insert_rows(table: str, rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     try:
         row_ids: List[str] = []
         for row in rows:
-            # ingested_at やアップロードファイル固有の情報は重複判定に含めない
-            # 同じ食事画像を複数回送信した場合でも1行のみ登録されるようにする
+            # 重複判定に含めないフィールドを拡張
+            # タイムスタンプ系とファイル固有情報を除外して、コンテンツベースでハッシュ生成
             row_copy = {
                 k: v
                 for k, v in row.items()
-                if k not in {"ingested_at", "file_name", "mime"}
+                if k not in {"ingested_at", "created_at", "file_name", "mime", "updated_at"}
             }
-            row_json = json.dumps(row_copy, sort_keys=True, ensure_ascii=False)
+            
+            # 特に食事記録の場合、ユーザー、日時、テキスト内容を基準とする
+            # これにより同じ食事内容の重複投稿を防ぐ
+            if table == settings.BQ_TABLE_MEALS:
+                # 食事記録の重複判定キー
+                dedup_key = {
+                    "user_id": row_copy.get("user_id"),
+                    "when_date": row_copy.get("when_date"),
+                    "text": row_copy.get("text"),
+                    "source": row_copy.get("source"),
+                    # whenは分単位で丸めて、同じ時間帯の重複を防ぐ
+                    "when_rounded": row_copy.get("when", "")[:16] if row_copy.get("when") else ""  # YYYY-MM-DDTHH:MM
+                }
+                row_json = json.dumps(dedup_key, sort_keys=True, ensure_ascii=False)
+            else:
+                # 他のテーブル用の汎用的な重複判定
+                row_json = json.dumps(row_copy, sort_keys=True, ensure_ascii=False)
+            
             row_ids.append(hashlib.sha256(row_json.encode()).hexdigest())
 
         errors = bq_client.insert_rows_json(
             table_id, rows, row_ids=row_ids, ignore_unknown_values=True
         )
-        return {"ok": not bool(errors), "errors": errors}
+        
+        result = {"ok": not bool(errors), "errors": errors}
+        if not errors:
+            print(f"[INFO] Successfully inserted {len(rows)} rows to {table} with deduplication")
+        else:
+            print(f"[ERROR] BigQuery insert errors: {errors}")
+        
+        return result
+        
     except Exception as e:
         print(f"[ERROR] BigQuery insert failed: {e}")
         return {"ok": False, "error": str(e)}
