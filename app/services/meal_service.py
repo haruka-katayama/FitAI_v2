@@ -43,10 +43,10 @@ def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dic
         # Firestore保存
         meals = user_doc(user_id).collection("meals")
         meals.document().set(meal_data)
-        firestore_result = True
+        firestore_result = {"ok": True}
     except Exception as e:
         print(f"[ERROR] Firestore meal save failed: {e}")
-        firestore_result = False
+        firestore_result = {"ok": False, "error": str(e)}
 
     # BigQuery保存
     bq_data = {
@@ -60,7 +60,7 @@ def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dic
         "mime": meal_data.get("mime"),
         "ingested_at": datetime.now(timezone.utc).isoformat(),
     }
-    
+
     try:
         bq_result = bq_insert_rows(settings.BQ_TABLE_MEALS, [bq_data])
         if not bq_result.get("ok"):
@@ -68,5 +68,8 @@ def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dic
     except Exception as e:
         print(f"[ERROR] BQ meal save failed: {e}")
         bq_result = {"ok": False, "error": str(e)}
-    
-    return {"firestore": firestore_result, "bigquery": bq_result}
+
+    ok = firestore_result.get("ok") and bq_result.get("ok")
+    if not ok:
+        return {"ok": False, "firestore": firestore_result, "bigquery": bq_result}
+    return {"ok": True, "firestore": firestore_result, "bigquery": bq_result}
