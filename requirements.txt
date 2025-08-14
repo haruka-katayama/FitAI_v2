@@ -1,0 +1,10 @@
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+google-cloud-firestore>=2.13.0
+google-cloud-bigquery>=3.13.0
+line-bot-sdk>=3.5.0
+httpx>=0.25.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
+google-cloud-storage>=2.16.0
+aiofiles>=23.2.1  # 静的ファイル配信用（新規追加）
