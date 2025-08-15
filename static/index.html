@@ -1759,11 +1759,11 @@ initializeDashboard();
                             label: '体重変化 (kg)',
                             data: [],
                             backgroundColor: function(context) {
-                                const value = context.parsed.y;
+                                const value = (context && context.parsed ? context.parsed.y : 0);
                                 return value > 0 ? 'rgba(255, 107, 107, 0.8)' : 'rgba(40, 167, 69, 0.8)';
                             },
                             borderColor: function(context) {
-                                const value = context.parsed.y;
+                                const value = (context && context.parsed ? context.parsed.y : 0);
                                 return value > 0 ? '#ff6b6b' : '#28a745';
                             },
                             borderWidth: 2
