@@ -1682,7 +1682,22 @@
             }
 
             // ダッシュボード初期化
-            initializeDashboard() {
+            
+// 既存チャートを安全に破棄するユーティリティ
+safeDestroyChartByCanvasId(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    try {
+        const existing = Chart.getChart ? Chart.getChart(el) : (el._chart || null);
+        if (existing && typeof existing.destroy === 'function') {
+            existing.destroy();
+        }
+    } catch (e) {
+        console.warn('[dashboard] safeDestroyChartByCanvasId failed', e);
+    }
+}
+
+initializeDashboard() {
                 // Chart.js のデフォルト設定
                 Chart.defaults.color = '#666';
                 Chart.defaults.borderColor = 'rgba(0, 0, 0, 0.1)';
@@ -1836,12 +1851,22 @@
                 console.log('[dashboard] summary response', response);
             
                 // ★ガード（想定フォーマットでなければ中断）
-                if (!response || response.ok !== true || !response.data) {
+                if (!response || !response.data) {
                   this.showStatus('dashboard-status', 'データ取得に失敗しました', 'error');
                   return;
                 }
                 
-                // ★チャート未生成でも落ちないよう保険（既に生成済なら何もしない）
+                
+// ★再描画前に既存チャートを安全に破棄
+try {
+  this.safeDestroyChartByCanvasId('calorie-chart');
+  this.safeDestroyChartByCanvasId('weight-change-chart');
+  this.safeDestroyChartByCanvasId('weight-chart');
+} catch (e) {
+  console.warn('[dashboard] destroy existing charts failed', e);
+}
+
+// ★チャート未生成でも落ちないよう保険（既に生成済なら何もしない）
                 if (!this.charts) this.charts = {};
                 if (!this.charts.calorie && this.createCalorieChart) this.createCalorieChart();
                 if (!this.charts.weightChange && this.createWeightChangeChart) this.createWeightChangeChart();
@@ -1860,7 +1885,7 @@
                 this.showStatus('dashboard-status', '✅ 更新しました', 'success');
               } catch (e) {
                 console.error('[dashboard] update error', e);
-                this.showStatus('dashboard-status', '通信エラーが発生しました', 'error');
+                this.showStatus('dashboard-status', `エラーが発生しました: ${e?.message || e}`, 'error');
               } finally {
                 // 既存のボタン復帰（必ず実行）
                 if (updateBtn) {
