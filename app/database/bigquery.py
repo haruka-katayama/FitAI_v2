@@ -1,13 +1,19 @@
 # app/database/bigquery.py - 修正版
 
 from google.cloud import bigquery
+from google.auth.exceptions import DefaultCredentialsError
 from datetime import datetime, timezone
 from typing import List, Dict, Any
 from app.config import settings
 import hashlib
 import json
 
-bq_client = bigquery.Client(project=settings.BQ_PROJECT_ID) if settings.BQ_PROJECT_ID else None
+# BigQueryクライアントは環境に認証情報がない場合がある。
+# その際はNoneとして扱い、アプリケーション全体が起動できるようにする。
+try:
+    bq_client = bigquery.Client(project=settings.BQ_PROJECT_ID) if settings.BQ_PROJECT_ID else None
+except DefaultCredentialsError:
+    bq_client = None
 
 def bq_insert_rows(table: str, rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     """BigQueryにデータを挿入。
