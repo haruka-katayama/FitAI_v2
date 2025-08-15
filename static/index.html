@@ -1028,6 +1028,7 @@
                 this.apiToken = localStorage.getItem('fitai_api_token') || '';
                 this.charts = {};
                 this.selectedFile = null;
+                this.isUploading = false;
                 // PASTEされたデータに基づく既往歴オプション
                 this.pastHistoryOptions = [
                     {value: 'hypertension', label: '高血圧'},
@@ -1509,11 +1510,15 @@
 
             // 食事アップロード
             async uploadMeal() {
+                if (this.isUploading) {
+                    return;
+                }
                 if (!this.selectedFile) {
                     this.showStatus('meal-status', '画像を選択してください', 'error');
                     return;
                 }
 
+                this.isUploading = true;
                 const uploadBtn = document.getElementById('upload-btn');
                 uploadBtn.disabled = true;
                 uploadBtn.innerHTML = '<span class="loading-spinner"></span> アップロード中...';
@@ -1596,6 +1601,7 @@
                     const details = error.serverResponse ? `\nサーバー詳細: ${error.serverResponse}` : '';
                     this.showStatus('meal-status', `❌ アップロードに失敗しました: ${error.message}${details}`, 'error');
                 } finally {
+                    this.isUploading = false;
                     uploadBtn.disabled = false;
                     uploadBtn.innerHTML = '🚀 食事を登録する';
                 }
