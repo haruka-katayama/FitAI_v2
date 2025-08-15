@@ -3,7 +3,8 @@
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any
 from app.database.firestore import user_doc
-from app.database.bigquery import bq_client, bq_insert_rows
+from app.database.bigquery import bq_client
+from google.cloud import bigquery
 from app.config import settings
 from app.utils.date_utils import to_when_date_str
 
@@ -90,7 +91,6 @@ def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dic
         "notes": meal_data.get("notes"),
         "ingested_at": current_time,  # 統一されたタイムスタンプを使用
         "created_at": current_time,   # created_atも同じ値に統一
-        "dedup_key": dedup_key,
     }
 
     try:
