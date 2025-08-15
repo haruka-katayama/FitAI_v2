@@ -1488,9 +1488,9 @@
                         
                         // BigQuery同期結果を表示
                         if (result.bq && !result.bq.ok) {
-                            this.showStatus('profile-status', `⚠️ BigQuery同期に失敗: ${result.bq.reason || result.bq.error}`, 'warning', true);
+                            this.showStatus('profile-status', `⚠️ 同期失敗: ${result.bq.reason || result.bq.error}`, 'warning', true);
                         } else if (result.bq && result.bq.ok) {
-                            this.showStatus('profile-status', '✅ BigQueryにも同期完了', 'success', true);
+                            this.showStatus('profile-status', '✅ 同期完了', 'success', true);
                         }
                     } else {
                         throw new Error(result.error || 'Unknown error');
