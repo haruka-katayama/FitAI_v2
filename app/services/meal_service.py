@@ -91,7 +91,6 @@ def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dic
         "notes": meal_data.get("notes"),
         "ingested_at": current_time,  # 統一されたタイムスタンプを使用
         "created_at": current_time,   # created_atも同じ値に統一
-        "dedup_key": dedup_key,
     }
 
     try:
