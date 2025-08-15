@@ -1826,6 +1826,8 @@
                 const response = await this.apiCall(
                   `/dashboard/summary?start_date=${startDate}&end_date=${endDate}&user_id=demo`
                 );
+
+                console.log('[dashboard] summary response', response);
             
                 // ★追加：取得結果の可視化（不具合時の切り分け用）
                 console.log('[dashboard] summary response', response);
@@ -1896,42 +1898,41 @@
 
             // チャート更新
             updateCharts(data) {
-                // データの検証
-                if (!data || !data.dates || !Array.isArray(data.dates)) {
-                    console.error('Invalid data structure:', data);
-                    throw new Error('データの形式が正しくありません');
-                }
-
-                // カロリーチャート
-                this.charts.calorie.data.labels = data.dates;
-                this.charts.calorie.data.datasets[0].data = data.take_in_calories || [];
-                this.charts.calorie.data.datasets[1].data = data.consumption_calories || [];
-                this.charts.calorie.update();
-
-                // 体重変化チャート
-                this.charts.weightChange.data.labels = data.dates;
-                this.charts.weightChange.data.datasets[0].data = data.weight_change_kg || [];
-                this.charts.weightChange.update();
-
-                // 体重チャート
-                this.charts.weight.data.labels = data.dates;
-                this.charts.weight.data.datasets[0].data = data.weight_kg || [];
-                this.charts.weight.update();
-
-                // 体重変化サマリー
-                if (data.weight_change_kg && data.weight_change_kg.length > 0) {
-                    const totalChange = data.weight_change_kg.reduce((sum, change) => sum + (change || 0), 0);
-                    const changeElement = document.getElementById('total-weight-change');
-                    if (changeElement) {
-                        if (totalChange > 0) {
-                            changeElement.textContent = `+${totalChange.toFixed(1)}kg`;
-                            changeElement.style.color = '#dc3545';
-                        } else {
-                            changeElement.textContent = `${totalChange.toFixed(1)}kg`;
-                            changeElement.style.color = '#28a745';
-                        }
-                    }
-                }
+              // --- 追加: 受け取ったデータのログ（切り分け用）
+              console.log('[updateCharts] input', data);
+            
+              // --- 追加: チャートの存在チェック（未生成なら生成）
+              if (!this.charts) this.charts = {};
+              try {
+                if (!this.charts.calorie && this.createCalorieChart) this.createCalorieChart();
+                if (!this.charts.weightChange && this.createWeightChangeChart) this.createWeightChangeChart();
+                if (!this.charts.weight && this.createWeightChart) this.createWeightChart();
+              } catch (e) {
+                console.error('[updateCharts] chart init error', e);
+                throw e; // ここで落ちたら try-catch 側でメッセージ表示
+              }
+            
+              // 既存の検証
+              if (!data || !data.dates || !Array.isArray(data.dates)) {
+                console.error('Invalid data structure:', data);
+                throw new Error('データの形式が正しくありません');
+              }
+            
+              // 以降は既存の更新処理のまま
+              this.charts.calorie.data.labels = data.dates;
+              this.charts.calorie.data.datasets[0].data = data.take_in_calories || [];
+              this.charts.calorie.data.datasets[1].data = data.consumption_calories || [];
+              this.charts.calorie.update();
+            
+              this.charts.weightChange.data.labels = data.dates;
+              this.charts.weightChange.data.datasets[0].data = data.weight_change_kg || [];
+              this.charts.weightChange.update();
+            
+              this.charts.weight.data.labels = data.dates;
+              this.charts.weight.data.datasets[0].data = data.weight_kg || [];
+              this.charts.weight.update();
+            
+              // 既存のサマリー更新はそのまま
             }
 
             // 期間設定
