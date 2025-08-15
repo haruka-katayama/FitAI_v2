@@ -1,75 +1,72 @@
-// sw.js — API は触らない版（network-first for static, cache fallback）
-// バージョンを上げると更新が確実に反映されます
-const CACHE_NAME = 'fitai-static-v1.0.3';
+// sw.js — 静的ファイルのみ扱う許可リスト方式（APIは完全スルー）
+const CACHE_NAME = 'fitai-static-v1.0.5';
 
-// 事前キャッシュしたい静的ファイル（必要に応じて調整）
+// 必要なら事前キャッシュ（空でもOK）
 const STATIC_ASSETS = [
   '/',            // ルート
   '/index.html',  // エントリ
   '/static/logo.png',
-  // '/static/styles.css',
-  // '/static/app.js',
 ];
 
-// --- Install: 事前キャッシュ & 即時制御に切替 ---
+// --- Install: 事前キャッシュ & 即時有効化 ---
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(STATIC_ASSETS))
-      .catch(() => Promise.resolve()) // オフライン初回等で失敗しても進める
+      .catch(() => Promise.resolve()) // 初回オフラインでも進める
   );
   self.skipWaiting();
 });
 
-// --- Activate: 旧キャッシュの掃除 & 即時制御 ---
+// --- Activate: 旧キャッシュ掃除 & 直ちに制御開始 ---
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      )
+      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
     )
   );
   clients.claim();
 });
 
-// --- Fetch: API（/ui, /api, /fitbit, /coach）や非GETは一切触らない ---
-//       静的GETだけ network-first（成功時にキャッシュへ保存、失敗時はキャッシュをフォールバック）
+// --- Fetch: 静的GETだけを扱う（許可リスト拡張子）。API/非GET/クロスオリジンは全スルー ---
 self.addEventListener('fetch', (event) => {
   const req = event.request;
 
-  // 非GETは触らない（POST/PUT/DELETE等はそのままブラウザに任せる）
+  // 非GETは触らない（POST/PUT/DELETEなどはそのままブラウザに任せる）
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
 
-  // 異なるオリジンは触らない（必要ならここを調整）
+  // クロスオリジンは触らない（必要あれば許可ドメインを追加）
   if (url.origin !== self.location.origin) return;
 
-  // API 系パスは触らない（重要：これで二重送信を防止）
+  // API/動的っぽいパスは触らない（念のため主要パスを除外）
   const isApiPath =
     url.pathname.startsWith('/ui/') ||
     url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/dashboard/') ||
+    url.pathname.startsWith('/coach/') ||
     url.pathname.startsWith('/fitbit/') ||
-    url.pathname.startsWith('/coach/');
-
+    url.pathname.startsWith('/auth/');
   if (isApiPath) return;
 
-  // ここから静的ファイルのみを扱う（1本化：必ず respondWith を使う）
+  // 静的ファイルのみ扱う（許可拡張子）
+  const isStaticFile = /\.(?:html|css|js|mjs|png|jpg|jpeg|webp|svg|ico|gif|json|map|txt|woff2?|ttf|eot)$/.test(url.pathname);
+  if (!isStaticFile) return;
+
+  // ここから静的だけ network-first（成功時キャッシュ、失敗時キャッシュフォールバック）
   event.respondWith(
     fetch(req)
       .then((res) => {
-        // 成功したらキャッシュへ保存（200系のみ）
+        // 200系だけキャッシュ
         if (res && res.status === 200) {
-          const resClone = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
         }
         return res;
       })
       .catch(async () => {
-        // ネットワーク失敗時はキャッシュをフォールバック
+        // ネットワーク失敗時はキャッシュへ
         const cached = await caches.match(req);
         if (cached) return cached;
 
@@ -79,7 +76,7 @@ self.addEventListener('fetch', (event) => {
           if (fallback) return fallback;
         }
 
-        // それでも無ければ失敗のまま
+        // それでも駄目なら失敗のまま
         throw new Error('Network error and no cache.');
       })
   );
