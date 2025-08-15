@@ -1059,7 +1059,6 @@
                 this.setupPastHistoryMultiselect();
                 this.loadProfile();
                 this.setupMealUpload();
-                this.initializeDashboard();
                 this.restoreState();
                 
                 // デフォルトの日付設定
@@ -1285,7 +1284,13 @@
                 
                 // ページ固有の処理
                 if (pageId === 'dashboard') {
-                    setTimeout(() => this.updateDashboard(), 100);
+                    if (Object.keys(this.charts).length === 0) {
+                        this.initializeDashboard();
+                    }
+                    setTimeout(() => {
+                        Object.values(this.charts).forEach(chart => chart.resize());
+                        this.updateDashboard();
+                    }, 100);
                 }
             }
 
