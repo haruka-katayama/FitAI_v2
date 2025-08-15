@@ -1686,15 +1686,17 @@
 // 既存チャートを安全に破棄するユーティリティ
 safeDestroyChartByCanvasId(id) {
     const el = document.getElementById(id);
-    if (!el) return;
+    if (!el) return null;
+    let existing = null;
     try {
-        const existing = Chart.getChart ? Chart.getChart(el) : (el._chart || null);
+        existing = Chart.getChart ? Chart.getChart(el) : (el._chart || null);
         if (existing && typeof existing.destroy === 'function') {
             existing.destroy();
         }
     } catch (e) {
         console.warn('[dashboard] safeDestroyChartByCanvasId failed', e);
     }
+    return existing;
 }
 
 initializeDashboard() {
@@ -1862,11 +1864,15 @@ initializeDashboard() {
                 }
                 
                 
-// ★再描画前に既存チャートを安全に破棄
+// ★再描画前に既存チャートを安全に破棄し、参照をクリア
 try {
-  this.safeDestroyChartByCanvasId('calorie-chart');
-  this.safeDestroyChartByCanvasId('weight-change-chart');
-  this.safeDestroyChartByCanvasId('weight-chart');
+  const destroyedCalorie = this.safeDestroyChartByCanvasId('calorie-chart');
+  const destroyedWeightChange = this.safeDestroyChartByCanvasId('weight-change-chart');
+  const destroyedWeight = this.safeDestroyChartByCanvasId('weight-chart');
+  if (!this.charts) this.charts = {};
+  if (destroyedCalorie || this.charts.calorie) this.charts.calorie = null;
+  if (destroyedWeightChange || this.charts.weightChange) this.charts.weightChange = null;
+  if (destroyedWeight || this.charts.weight) this.charts.weight = null;
 } catch (e) {
   console.warn('[dashboard] destroy existing charts failed', e);
 }
