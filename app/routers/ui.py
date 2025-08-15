@@ -3,12 +3,14 @@
 from fastapi import APIRouter, Header, File, UploadFile, Form, Query
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
+from typing import Dict, Any
 from app.models.meal import MealIn
 from app.services.meal_service import save_meal_to_stores, validate_meal_data
 from app.external.openai_client import vision_extract_meal_bytes
 from app.config import settings
 from app.utils.auth_utils import require_token
 from app.utils.date_utils import to_when_date_str
+from app.database import get_latest_profile, user_doc, bq_upsert_profile
 import hashlib
 import uuid
 import logging
@@ -203,3 +205,38 @@ async def ui_meal_image_preview(
 
     text = await vision_extract_meal_bytes(data, mime)
     return {"ok": True, "preview": text, "size": len(data), "mime": mime}
+
+
+@router.get("/profile")
+def ui_get_profile(
+    x_api_token: str | None = Header(None, alias="x-api-token"),
+    x_user_id: str | None = Header(None, alias="x-user-id"),
+) -> Dict[str, Any]:
+    """保存されたユーザープロフィールを取得"""
+    require_token(x_api_token)
+    user_id = _resolve_user_id(x_user_id)
+    profile = get_latest_profile(user_id) or {}
+    return {"ok": True, "profile": profile}
+
+
+@router.post("/profile")
+def ui_post_profile(
+    body: Dict[str, Any],
+    x_api_token: str | None = Header(None, alias="x-api-token"),
+    x_user_id: str | None = Header(None, alias="x-user-id"),
+) -> Dict[str, Any]:
+    """ユーザープロフィールを保存"""
+    require_token(x_api_token)
+    user_id = _resolve_user_id(x_user_id)
+
+    payload = dict(body)
+    payload.setdefault("updated_at", datetime.now(timezone.utc).isoformat())
+
+    try:
+        doc_ref = user_doc(user_id).collection("profile").document("latest")
+        doc_ref.set(payload)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+    bq = bq_upsert_profile(user_id)
+    return {"ok": True, "profile": payload, "bq": bq}
