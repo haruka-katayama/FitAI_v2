@@ -1762,6 +1762,10 @@ initializeDashboard() {
                             data: [],
                             backgroundColor: (context) => {
                                 const value = context.parsed?.y;
+                                if (value === undefined) {
+                                    // 凡例描画時には value が未定義になるため、棒グラフと揃えた赤色を返す
+                                    return 'rgba(255, 107, 107, 0.8)';
+                                }
                                 return value > 0
                                     ? 'rgba(255, 107, 107, 0.8)'
                                     : 'rgba(40, 167, 69, 0.8)';
@@ -1769,7 +1773,8 @@ initializeDashboard() {
                             borderColor: (context) => {
                                 const value = context.parsed?.y;
                                 if (value === undefined) {
-                                    return '#6c757d';
+                                    // 凡例用に赤色を返す
+                                    return '#ff6b6b';
                                 }
                                 return value > 0 ? '#ff6b6b' : '#28a745';
                             },
