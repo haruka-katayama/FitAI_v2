@@ -1285,22 +1285,7 @@
                 // ページ固有の処理
                 if (pageId === 'dashboard') {
                     if (Object.keys(this.charts).length === 0) {
-                        this.
-// 既存チャートを安全に破棄するユーティリティ
-safeDestroyChartByCanvasId(id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    try {
-        const existing = Chart.getChart ? Chart.getChart(el) : (el._chart || null);
-        if (existing && typeof existing.destroy === 'function') {
-            existing.destroy();
-        }
-    } catch (e) {
-        console.warn('[dashboard] safeDestroyChartByCanvasId failed', e);
-    }
-}
-
-initializeDashboard();
+                        this.initializeDashboard();
                     }
                     setTimeout(() => {
                         Object.values(this.charts).forEach(chart => chart.resize());
@@ -1697,7 +1682,22 @@ initializeDashboard();
             }
 
             // ダッシュボード初期化
-            initializeDashboard() {
+            
+// 既存チャートを安全に破棄するユーティリティ
+safeDestroyChartByCanvasId(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    try {
+        const existing = Chart.getChart ? Chart.getChart(el) : (el._chart || null);
+        if (existing && typeof existing.destroy === 'function') {
+            existing.destroy();
+        }
+    } catch (e) {
+        console.warn('[dashboard] safeDestroyChartByCanvasId failed', e);
+    }
+}
+
+initializeDashboard() {
                 // Chart.js のデフォルト設定
                 Chart.defaults.color = '#666';
                 Chart.defaults.borderColor = 'rgba(0, 0, 0, 0.1)';
@@ -1856,8 +1856,7 @@ initializeDashboard();
                   return;
                 }
                 
-                // ★チャート未生成でも落ちないよう保険（既に生成済なら何もしない）
-
+                
 // ★再描画前に既存チャートを安全に破棄
 try {
   this.safeDestroyChartByCanvasId('calorie-chart');
@@ -1867,6 +1866,7 @@ try {
   console.warn('[dashboard] destroy existing charts failed', e);
 }
 
+// ★チャート未生成でも落ちないよう保険（既に生成済なら何もしない）
                 if (!this.charts) this.charts = {};
                 if (!this.charts.calorie && this.createCalorieChart) this.createCalorieChart();
                 if (!this.charts.weightChange && this.createWeightChangeChart) this.createWeightChangeChart();
@@ -1874,7 +1874,7 @@ try {
                 
                 // ★updateCharts を try-catch で囲む（描画エラーと通信エラーを分離）
                 try {
-                  this.updateChartsSafe(response.data);
+                  this.updateCharts(response.data);
                 } catch (e) {
                   console.error('[dashboard] updateCharts failed', e);
                   this.showStatus('dashboard-status', '描画時にエラーが発生しました', 'error');
