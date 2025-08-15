@@ -1826,27 +1826,32 @@
                 const response = await this.apiCall(
                   `/dashboard/summary?start_date=${startDate}&end_date=${endDate}&user_id=demo`
                 );
-
-                console.log('[dashboard] summary response', response);
             
                 // ★追加：取得結果の可視化（不具合時の切り分け用）
                 console.log('[dashboard] summary response', response);
             
-                // ★追加：ガード（想定フォーマットでなければ中断）
+                // ★ガード（想定フォーマットでなければ中断）
                 if (!response || response.ok !== true || !response.data) {
                   this.showStatus('dashboard-status', 'データ取得に失敗しました', 'error');
                   return;
                 }
-            
-                // ★追加：チャート未生成でも落ちないよう保険（既に生成済なら何もしません）
+                
+                // ★チャート未生成でも落ちないよう保険（既に生成済なら何もしない）
                 if (!this.charts) this.charts = {};
                 if (!this.charts.calorie && this.createCalorieChart) this.createCalorieChart();
                 if (!this.charts.weightChange && this.createWeightChangeChart) this.createWeightChangeChart();
                 if (!this.charts.weight && this.createWeightChart) this.createWeightChart();
-            
-                // 既存の更新処理（そのまま）
-                this.updateCharts(response.data);
-            
+                
+                // ★updateCharts を try-catch で囲む（描画エラーと通信エラーを分離）
+                try {
+                  this.updateCharts(response.data);
+                } catch (e) {
+                  console.error('[dashboard] updateCharts failed', e);
+                  this.showStatus('dashboard-status', '描画時にエラーが発生しました', 'error');
+                  return;
+                }
+                
+                // 正常時
                 this.showStatus('dashboard-status', '✅ 更新しました', 'success');
               } catch (e) {
                 console.error('[dashboard] update error', e);
