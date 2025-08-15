@@ -1530,26 +1530,13 @@
                     formData.append('file', this.selectedFile);
                     formData.append('when', whenISO);
 
-                    // 最初にトークンありで試行
-                    let headers = {};
-                    if (this.apiToken) {
-                        headers['x-api-token'] = this.apiToken;
-                    }
-
-                    let response = await fetch(`${this.apiBaseUrl}/ui/meal_image`, {
+                    // トークンがあればヘッダーに付与して1回だけ送信
+                    const headers = this.apiToken ? { 'x-api-token': this.apiToken } : {};
+                    const response = await fetch(`${this.apiBaseUrl}/ui/meal_image`, {
                         method: 'POST',
                         headers: headers,
                         body: formData
                     });
-
-                    // 401エラーの場合、トークンなしで再試行
-                    if (response.status === 401) {
-                        console.log('401 error detected, retrying without token...');
-                        response = await fetch(`${this.apiBaseUrl}/ui/meal_image`, {
-                            method: 'POST',
-                            body: formData
-                        });
-                    }
 
                     const responseClone = response.clone();
 
