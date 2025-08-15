@@ -2094,53 +2094,54 @@
         console.log('  setApiBaseUrl("http://localhost:8080") - APIベースURLを設定');
         console.log('  app - アプリケーションインスタンスにアクセス');
 
-        // サービスワーカー用コード（オプション）
-        const swCode = `
-            const CACHE_NAME = 'fitai-v1';
-            const urlsToCache = [
-                '/',
-                '/manifest.json'
-            ];
+        // // サービスワーカー用コード（オプション）
+        // const swCode = `
+        //     const CACHE_NAME = 'fitai-v1';
+        //     const urlsToCache = [
+        //         '/',
+        //         '/manifest.json'
+        //     ];
 
-            self.addEventListener('install', function(event) {
-                event.waitUntil(
-                    caches.open(CACHE_NAME)
-                        .then(function(cache) {
-                            return cache.addAll(urlsToCache);
-                        })
-                );
-            });
+        //     self.addEventListener('install', function(event) {
+        //         event.waitUntil(
+        //             caches.open(CACHE_NAME)
+        //                 .then(function(cache) {
+        //                     return cache.addAll(urlsToCache);
+        //                 })
+        //         );
+        //     });
 
-            self.addEventListener('fetch', function(event) {
-                event.respondWith(
-                    caches.match(event.request)
-                        .then(function(response) {
-                            if (response) {
-                                return response;
-                            }
-                            return fetch(event.request);
-                        }
-                    )
-                );
-            });
-        `;
+        //     self.addEventListener('fetch', function(event) {
+        //         event.respondWith(
+        //             caches.match(event.request)
+        //                 .then(function(response) {
+        //                     if (response) {
+        //                         return response;
+        //                     }
+        //                     return fetch(event.request);
+        //                 }
+        //             )
+        //         );
+        //     });
+        // `;
 
-        // サービスワーカーをBlob URLとして作成
-        const swBlob = new Blob([swCode], {type: 'application/javascript'});
-        const swURL = URL.createObjectURL(swBlob);
+        // // サービスワーカーをBlob URLとして作成
+        // const swBlob = new Blob([swCode], {type: 'application/javascript'});
+        // const swURL = URL.createObjectURL(swBlob);
 
-        // サービスワーカー登録
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register(swURL)
-                    .then((registration) => {
-                        console.log('🔧 Service Worker registered successfully');
-                    })
-                    .catch((registrationError) => {
-                        console.log('⚠️ Service Worker registration failed:', registrationError);
-                    });
-            });
-        }
+        // // サービスワーカー登録
+        // if ('serviceWorker' in navigator) {
+        //     window.addEventListener('load', () => {
+        //         navigator.serviceWorker.register(swURL)
+        //             .then((registration) => {
+        //                 console.log('🔧 Service Worker registered successfully');
+        //             })
+        //             .catch((registrationError) => {
+        //                 console.log('⚠️ Service Worker registration failed:', registrationError);
+        //             });
+        //     });
+        // }
+    
     </script>
 </body>
 </html>
