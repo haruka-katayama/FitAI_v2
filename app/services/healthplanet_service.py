@@ -46,20 +46,25 @@ def to_bigquery_rows(user_id: str, raw_data: Dict[str, Any]) -> List[Dict[str, A
     """BigQuery用の行データに変換"""
     rows: List[Dict[str, Any]] = []
     now = jst_now().isoformat()
-    
+
     for item in raw_data.get("data", []):
         value = item.get("keydata")
         if value in (None, ""):
             continue
-        
+
+        tag = item.get("tag")
+        float_value = float(value)
+
         rows.append({
             "user_id": user_id,
             "measured_at": datetime.strptime(item["date"], "%Y%m%d%H%M%S").isoformat(),
-            "tag": item.get("tag"),
-            "value": float(value),
+            "tag": tag,
+            "value": float_value,
             "unit": item.get("unit") or None,
             "ingested": now,
             "raw": item,
+            "weight": float_value if tag == "6021" else None,
+            "fat_percentage": float_value if tag == "6022" else None,
         })
     
     return rows
