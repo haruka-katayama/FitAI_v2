@@ -1802,55 +1802,60 @@
 
             // ダッシュボード更新
             async updateDashboard() {
-                const updateBtn = document.getElementById('update-dashboard');
+              const updateBtn = document.getElementById('update-dashboard');
+              if (updateBtn) {
+                updateBtn.disabled = true;
+                updateBtn.innerHTML = '<span class="loading-spinner"></span> 更新中...';
+              }
+            
+              const startDate = document.getElementById('start-date').value;
+              const endDate   = document.getElementById('end-date').value;
+            
+              if (!startDate || !endDate) {
+                this.showStatus('dashboard-status', '日付を選択してください', 'error');
                 if (updateBtn) {
-                    updateBtn.disabled = true;
-                    updateBtn.innerHTML = '<span class="loading-spinner"></span> 更新中...';
+                  updateBtn.disabled = false;
+                  updateBtn.innerHTML = '⟳ 更新';
                 }
-
-                const startDate = document.getElementById('start-date').value;
-                const endDate = document.getElementById('end-date').value;
-
-                if (!startDate || !endDate) {
-                    this.showStatus('dashboard-status', '日付を選択してください', 'error');
-                    if (updateBtn) {
-                        updateBtn.disabled = false;
-                        updateBtn.innerHTML = '🔄 更新';
-                    }
-                    return;
+                return;
+              }
+            
+              this.showStatus('dashboard-status', '📊 データ取得中...', 'warning');
+            
+              try {
+                const response = await this.apiCall(
+                  `/dashboard/summary?start_date=${startDate}&end_date=${endDate}&user_id=demo`
+                );
+            
+                // ★追加：取得結果の可視化（不具合時の切り分け用）
+                console.log('[dashboard] summary response', response);
+            
+                // ★追加：ガード（想定フォーマットでなければ中断）
+                if (!response || response.ok !== true || !response.data) {
+                  this.showStatus('dashboard-status', 'データ取得に失敗しました', 'error');
+                  return;
                 }
-
-                this.showStatus('dashboard-status', '📊 データ取得中...', 'warning');
-
-                try {
-                    // 実際のAPIエンドポイントからデータを取得
-                    const response = await this.apiCall(`/dashboard/summary?start_date=${startDate}&end_date=${endDate}&user_id=demo`);
-                    
-                    if (!response.ok) {
-                        throw new Error(response.error || 'データ取得に失敗しました');
-                    }
-                    
-                    this.updateCharts(response.data);
-                    this.showStatus('dashboard-status', '✅ ダッシュボードを更新しました', 'success');
-
-                } catch (error) {
-                    console.error('Dashboard update failed:', error);
-                    this.showStatus('dashboard-status', `❌ データ取得に失敗しました: ${error.message}`, 'error');
-                    
-                    // フォールバック: モックデータを使用
-                    try {
-                        const mockData = this.generateMockDashboardData(startDate, endDate);
-                        this.updateCharts(mockData);
-                        this.showStatus('dashboard-status', '⚠️ モックデータを表示中（APIエラーのため）', 'warning');
-                    } catch (mockError) {
-                        this.showStatus('dashboard-status', '❌ データ表示に失敗しました', 'error');
-                    }
-                } finally {
-                    if (updateBtn) {
-                        updateBtn.disabled = false;
-                        updateBtn.innerHTML = '🔄 更新';
-                    }
+            
+                // ★追加：チャート未生成でも落ちないよう保険（既に生成済なら何もしません）
+                if (!this.charts) this.charts = {};
+                if (!this.charts.calorie && this.createCalorieChart) this.createCalorieChart();
+                if (!this.charts.weightChange && this.createWeightChangeChart) this.createWeightChangeChart();
+                if (!this.charts.weight && this.createWeightChart) this.createWeightChart();
+            
+                // 既存の更新処理（そのまま）
+                this.updateCharts(response.data);
+            
+                this.showStatus('dashboard-status', '✅ 更新しました', 'success');
+              } catch (e) {
+                console.error('[dashboard] update error', e);
+                this.showStatus('dashboard-status', '通信エラーが発生しました', 'error');
+              } finally {
+                // 既存のボタン復帰（必ず実行）
+                if (updateBtn) {
+                  updateBtn.disabled = false;
+                  updateBtn.innerHTML = '⟳ 更新';
                 }
+              }
             }
 
             // モックダッシュボードデータ生成
@@ -2031,7 +2036,7 @@
             ],
             "theme_color": "#ff6b35",
             "background_color": "#ffffff",
-            "display": "standalone",
+            "display": "browser",
             "start_url": "/",
             "scope": "/"
         };
