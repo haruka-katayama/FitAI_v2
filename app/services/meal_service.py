@@ -91,6 +91,7 @@ def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dic
         "notes": meal_data.get("notes"),
         "ingested_at": current_time,  # 統一されたタイムスタンプを使用
         "created_at": current_time,   # created_atも同じ値に統一
+        "dedup_key": dedup_key,       # 重複判定用キーも格納
     }
 
     try:
@@ -157,14 +158,12 @@ def create_meal_dedup_key(meal_data: Dict[str, Any], user_id: str) -> str:
     import json
     
     # 重複排除用のキーフィールドのみ抽出
+    # オプション項目によるわずかな違いで別データと判定されないよう、
+    # ユーザー・日付・本文・丸めた時刻のみをハッシュ化に利用する
     dedup_fields = {
         "user_id": user_id,
         "when_date": meal_data.get("when_date"),
         "text": meal_data.get("text"),
-        "source": meal_data.get("source"),
-        "meal_kind": meal_data.get("meal_kind"),
-        "image_digest": meal_data.get("image_digest"),
-        "notes": meal_data.get("notes"),
         # 時刻は分単位で丸める（秒の違いによる重複を防ぐ）
         "when_rounded": meal_data.get("when", "")[:16] if meal_data.get("when") else ""
     }
