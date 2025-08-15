@@ -291,6 +291,31 @@ async def get_dashboard_summary(
             for row in weight_rows
         }
 
+        # Fitbitの歩数データの取得
+        steps_query = f"""
+        SELECT
+            date,
+            steps_total
+        FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_FITBIT}`
+        WHERE user_id = @user_id
+          AND date BETWEEN @start_date AND @end_date
+        ORDER BY date ASC
+        """
+
+        steps_config = bigquery.QueryJobConfig(query_parameters=[
+            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
+            bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
+        ])
+
+        steps_job = bq_client.query(steps_query, job_config=steps_config)
+        steps_rows = list(steps_job.result())
+
+        steps_by_date = {
+            row.date.strftime("%Y-%m-%d"): int(row.steps_total) if row.steps_total is not None else 0
+            for row in steps_rows
+        }
+
         # 期間内の全日付リストを作成
         start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
         end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
@@ -305,6 +330,7 @@ async def get_dashboard_summary(
         consumption = []
         weight_change = []
         weights = []
+        steps = []
 
         for d in all_dates:
             analysis = analysis_by_date.get(d, {})
@@ -312,6 +338,7 @@ async def get_dashboard_summary(
             consumption.append(analysis.get("consumption_calories", 0))
             weight_change.append(analysis.get("weight_change_kg", 0))
             weights.append(weight_by_date.get(d, 0))
+            steps.append(steps_by_date.get(d, 0))
 
         return {
             "ok": True,
@@ -321,7 +348,7 @@ async def get_dashboard_summary(
                 "consumption_calories": consumption,
                 "weight_change_kg": weight_change,
                 "weight_kg": weights,
-                "steps_total": [],
+                "steps_total": steps,
             },
         }
 
