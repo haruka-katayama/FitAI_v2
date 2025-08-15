@@ -1758,12 +1758,17 @@ initializeDashboard() {
                         datasets: [{
                             label: '体重変化 (kg)',
                             data: [],
-                            backgroundColor: function(context) {
-                                const value = context.parsed.y;
-                                return value > 0 ? 'rgba(255, 107, 107, 0.8)' : 'rgba(40, 167, 69, 0.8)';
+                            backgroundColor: (context) => {
+                                const value = context.parsed?.y;
+                                return value > 0
+                                    ? 'rgba(255, 107, 107, 0.8)'
+                                    : 'rgba(40, 167, 69, 0.8)';
                             },
-                            borderColor: function(context) {
-                                const value = context.parsed.y;
+                            borderColor: (context) => {
+                                const value = context.parsed?.y;
+                                if (value === undefined) {
+                                    return '#6c757d';
+                                }
                                 return value > 0 ? '#ff6b6b' : '#28a745';
                             },
                             borderWidth: 2
@@ -1960,7 +1965,8 @@ try {
               this.charts.calorie.update();
             
               this.charts.weightChange.data.labels = data.dates;
-              this.charts.weightChange.data.datasets[0].data = data.weight_change_kg || [];
+              const weightChangeData = (data.weight_change_kg || []).map(v => v ?? 0);
+              this.charts.weightChange.data.datasets[0].data = weightChangeData;
               this.charts.weightChange.update();
             
               this.charts.weight.data.labels = data.dates;
