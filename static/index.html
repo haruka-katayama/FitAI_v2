@@ -1974,11 +1974,19 @@ try {
               const weightChangeData = (data.weight_change_kg || []).map(v => v ?? 0);
               this.charts.weightChange.data.datasets[0].data = weightChangeData;
               this.charts.weightChange.update();
-            
+
+              // 期間中の体重変化を合計しサマリーカードに表示
+              const totalWeightChange = weightChangeData.reduce((sum, value) => sum + value, 0);
+              const summaryEl = document.getElementById('total-weight-change');
+              if (summaryEl) {
+                const sign = totalWeightChange > 0 ? '+' : '';
+                summaryEl.textContent = `${sign}${totalWeightChange.toFixed(2)} kg`;
+              }
+
               this.charts.weight.data.labels = data.dates;
               this.charts.weight.data.datasets[0].data = data.weight_kg || [];
               this.charts.weight.update();
-            
+
               // 既存のサマリー更新はそのまま
             }
 
