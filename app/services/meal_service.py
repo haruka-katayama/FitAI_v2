@@ -167,6 +167,9 @@ def create_meal_dedup_key(meal_data: Dict[str, Any], user_id: str) -> str:
         # 時刻は分単位で丸める（秒の違いによる重複を防ぐ）
         "when_rounded": meal_data.get("when", "")[:16] if meal_data.get("when") else ""
     }
+    # 画像のハッシュ値がある場合は重複判定に含める
+    if meal_data.get("image_digest"):
+        dedup_fields["image_digest"] = meal_data["image_digest"]
     
     # JSONシリアライズしてハッシュ化
     key_json = json.dumps(dedup_fields, sort_keys=True, ensure_ascii=False)
