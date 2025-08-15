@@ -3,7 +3,8 @@
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any
 from app.database.firestore import user_doc
-from app.database.bigquery import bq_client, bq_insert_rows
+from app.database.bigquery import bq_client
+from google.cloud import bigquery
 from app.config import settings
 from app.utils.date_utils import to_when_date_str
 
@@ -96,24 +97,39 @@ def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dic
     try:
         if bq_client:
             table_id = f"{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}"
-            errors = bq_client.insert_rows_json(
-                table_id, [bq_data], row_ids=[dedup_key], ignore_unknown_values=True
-            )
 
-            if errors:
-                # 既に存在する場合（重複エラー）は成功として扱う
-                all_dup = all(
-                    all(
-                        err.get("reason") == "duplicate" or "already" in err.get("message", "").lower()
-                        for err in row.get("errors", [])
-                    )
-                    for row in errors
-                )
-                bq_result = {"ok": all_dup, "errors": errors, "skipped": all_dup}
-                if not all_dup:
-                    print(f"[ERROR] BigQuery meal insert error: {errors}")
+            # 既に同じdedup_keyのレコードが存在するかチェック
+            check_query = f"""
+                SELECT 1
+                FROM `{table_id}`
+                WHERE dedup_key = @dedup_key
+                LIMIT 1
+            """
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[bigquery.ScalarQueryParameter("dedup_key", "STRING", dedup_key)]
+            )
+            check_job = bq_client.query(check_query, job_config=job_config)
+            if list(check_job.result()):
+                bq_result = {"ok": True, "skipped": True}
             else:
-                bq_result = {"ok": True}
+                errors = bq_client.insert_rows_json(
+                    table_id, [bq_data], row_ids=[dedup_key], ignore_unknown_values=True
+                )
+
+                if errors:
+                    # 既に存在する場合（重複エラー）は成功として扱う
+                    all_dup = all(
+                        all(
+                            err.get("reason") == "duplicate" or "already" in err.get("message", "").lower()
+                            for err in row.get("errors", [])
+                        )
+                        for row in errors
+                    )
+                    bq_result = {"ok": all_dup, "errors": errors, "skipped": all_dup}
+                    if not all_dup:
+                        print(f"[ERROR] BigQuery meal insert error: {errors}")
+                else:
+                    bq_result = {"ok": True}
         else:
             bq_result = {"ok": False, "reason": "bq disabled"}
     except Exception as e:
