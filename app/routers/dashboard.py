@@ -159,25 +159,26 @@ async def get_weight_dashboard_data(
         return JSONResponse({"ok": False, "error": "BigQuery not configured"}, status_code=500)
     
     try:
-        # Health Planetからの体重データ - 最新の測定値のみ取得
+        # Health Planetからの体重・体脂肪率データ - 最新の測定値のみ取得
         weight_query = f"""
         SELECT
             date,
-            weight_kg
+            weight AS weight_kg,
+            fat_percentage
         FROM (
             SELECT
                 DATE(measured_at) AS date,
-                value AS weight_kg,
+                weight,
+                fat_percentage,
                 ROW_NUMBER() OVER(PARTITION BY DATE(measured_at) ORDER BY measured_at DESC) AS rn
             FROM `{settings.HP_BQ_TABLE}`
             WHERE user_id = @user_id
-              AND tag = '6021'  -- 体重
               AND DATE(measured_at) BETWEEN @start_date AND @end_date
         )
         WHERE rn = 1
         ORDER BY date ASC
         """
-        
+
         job_config = bigquery.QueryJobConfig(
             query_parameters=[
                 bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
@@ -185,34 +186,38 @@ async def get_weight_dashboard_data(
                 bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
             ]
         )
-        
+
         query_job = bq_client.query(weight_query, job_config=job_config)
         results = list(query_job.result())
-        
+
         # データを整形
-        dates = []
-        weights = []
-        
+        dates: List[str] = []
+        weights: List[float] = []
+        fats: List[float] = []
+
         for row in results:
             dates.append(row.date.strftime("%Y-%m-%d"))
-            weights.append(float(row.weight_kg))
-        
+            weights.append(float(row.weight_kg) if row.weight_kg is not None else None)
+            fats.append(float(row.fat_percentage) if row.fat_percentage is not None else None)
+
         return {
             "ok": True,
             "data": {
                 "dates": dates,
-                "weight_kg": weights
+                "weight_kg": weights,
+                "fat_percentage": fats,
             }
         }
-        
+
     except Exception:
         # Health Planetデータがない場合は空のデータを返す
         return {
             "ok": True,
             "data": {
                 "dates": [],
-                "weight_kg": []
-            }
+                "weight_kg": [],
+                "fat_percentage": [],
+            },
         }
 
 @router.get("/summary")
@@ -258,19 +263,20 @@ async def get_dashboard_summary(
             for row in analysis_rows
         }
 
-        # 体重データの取得 (1日1つの最新値のみ)
+        # 体重・体脂肪率データの取得 (1日1つの最新値のみ)
         weight_query = f"""
         SELECT
             date,
-            weight_kg
+            weight AS weight_kg,
+            fat_percentage
         FROM (
             SELECT
                 DATE(measured_at) AS date,
-                value AS weight_kg,
+                weight,
+                fat_percentage,
                 ROW_NUMBER() OVER(PARTITION BY DATE(measured_at) ORDER BY measured_at DESC) AS rn
             FROM `{settings.HP_BQ_TABLE}`
             WHERE user_id = @user_id
-              AND tag = '6021'
               AND DATE(measured_at) BETWEEN @start_date AND @end_date
         )
         WHERE rn = 1
@@ -287,7 +293,11 @@ async def get_dashboard_summary(
         weight_rows = list(weight_job.result())
 
         weight_by_date = {
-            row.date.strftime("%Y-%m-%d"): float(row.weight_kg)
+            row.date.strftime("%Y-%m-%d"): float(row.weight_kg) if row.weight_kg is not None else None
+            for row in weight_rows
+        }
+        fat_by_date = {
+            row.date.strftime("%Y-%m-%d"): float(row.fat_percentage) if row.fat_percentage is not None else None
             for row in weight_rows
         }
 
@@ -330,6 +340,7 @@ async def get_dashboard_summary(
         consumption = []
         weight_change = []
         weights = []
+        fats = []
         steps = []
 
         for d in all_dates:
@@ -338,6 +349,7 @@ async def get_dashboard_summary(
             consumption.append(analysis.get("consumption_calories", 0))
             weight_change.append(analysis.get("weight_change_kg", 0))
             weights.append(weight_by_date.get(d, 0))
+            fats.append(fat_by_date.get(d, 0))
             steps.append(steps_by_date.get(d, 0))
 
         return {
@@ -348,6 +360,7 @@ async def get_dashboard_summary(
                 "consumption_calories": consumption,
                 "weight_change_kg": weight_change,
                 "weight_kg": weights,
+                "fat_percentage": fats,
                 "steps_total": steps,
             },
         }

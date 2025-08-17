@@ -997,6 +997,15 @@
                             <canvas id="weight-chart"></canvas>
                         </div>
                     </div>
+
+                    <div class="chart-container">
+                        <div class="chart-title">
+                            📉 体脂肪率推移
+                        </div>
+                        <div class="chart-canvas">
+                            <canvas id="body-fat-chart"></canvas>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="dashboard-status"></div>
@@ -1806,6 +1815,27 @@ initializeDashboard() {
                 });
             }
 
+            // 体脂肪率チャート作成
+            createBodyFatChart() {
+                const ctx = document.getElementById('body-fat-chart').getContext('2d');
+                this.charts.bodyFat = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: '体脂肪率 (%)',
+                            data: [],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: this.getChartOptions('体脂肪率 (%)')
+                });
+            }
+
             // 共通チャートオプション
             getChartOptions(yAxisLabel) {
                 return {
@@ -1874,10 +1904,12 @@ try {
   const destroyedCalorie = this.safeDestroyChartByCanvasId('calorie-chart');
   const destroyedWeightChange = this.safeDestroyChartByCanvasId('weight-change-chart');
   const destroyedWeight = this.safeDestroyChartByCanvasId('weight-chart');
+  const destroyedBodyFat = this.safeDestroyChartByCanvasId('body-fat-chart');
   if (!this.charts) this.charts = {};
   if (destroyedCalorie || this.charts.calorie) this.charts.calorie = null;
   if (destroyedWeightChange || this.charts.weightChange) this.charts.weightChange = null;
   if (destroyedWeight || this.charts.weight) this.charts.weight = null;
+  if (destroyedBodyFat || this.charts.bodyFat) this.charts.bodyFat = null;
 } catch (e) {
   console.warn('[dashboard] destroy existing charts failed', e);
 }
@@ -1887,6 +1919,7 @@ try {
                 if (!this.charts.calorie && this.createCalorieChart) this.createCalorieChart();
                 if (!this.charts.weightChange && this.createWeightChangeChart) this.createWeightChangeChart();
                 if (!this.charts.weight && this.createWeightChart) this.createWeightChart();
+                if (!this.charts.bodyFat && this.createBodyFatChart) this.createBodyFatChart();
                 
                 // ★updateCharts を try-catch で囲む（描画エラーと通信エラーを分離）
                 try {
@@ -1922,7 +1955,8 @@ try {
                     consumption_calories: [],
                     take_in_calories: [],
                     weight_change_kg: [],
-                    weight_kg: []
+                    weight_kg: [],
+                    fat_percentage: []
                 };
 
                 let currentWeight = 70; // 初期体重
@@ -1942,6 +1976,7 @@ try {
                     data.take_in_calories.push(intake);
                     data.weight_change_kg.push(weightChange);
                     data.weight_kg.push(currentWeight);
+                    data.fat_percentage.push(20 + (Math.random() - 0.5) * 5);
                 }
 
                 return data;
@@ -1958,6 +1993,7 @@ try {
                 if (!this.charts.calorie && this.createCalorieChart) this.createCalorieChart();
                 if (!this.charts.weightChange && this.createWeightChangeChart) this.createWeightChangeChart();
                 if (!this.charts.weight && this.createWeightChart) this.createWeightChart();
+                if (!this.charts.bodyFat && this.createBodyFatChart) this.createBodyFatChart();
               } catch (e) {
                 console.error('[updateCharts] chart init error', e);
                 throw e; // ここで落ちたら try-catch 側でメッセージ表示
@@ -1991,6 +2027,12 @@ try {
               this.charts.weight.data.labels = data.dates;
               this.charts.weight.data.datasets[0].data = data.weight_kg || [];
               this.charts.weight.update();
+
+              if (this.charts.bodyFat) {
+                this.charts.bodyFat.data.labels = data.dates;
+                this.charts.bodyFat.data.datasets[0].data = data.fat_percentage || [];
+                this.charts.bodyFat.update();
+              }
 
               // 既存のサマリー更新はそのまま
             }
