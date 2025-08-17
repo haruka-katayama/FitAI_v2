@@ -1,9 +1,16 @@
 from datetime import datetime, timedelta
-import json
 from typing import List, Dict, Any
+import json
+
 from app.external.healthplanet_client import fetch_innerscan_data, jst_now, format_datetime
 from app.database.bigquery import bq_client
 from app.config import settings
+
+# ---- CONFIG: BigQuery の raw フィールドの型に合わせて切替 ----
+# "string" なら raw は JSON 文字列で保存
+# "record" なら raw は ネイティブな配列/オブジェクト（RECORD/JSON）で保存
+RAW_FIELD_MODE = "string"  # or "record"
+# -------------------------------------------------------------
 
 def parse_innerscan_for_prompt(raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """APIレスポンスをプロンプト用に整形"""
@@ -44,13 +51,14 @@ def summarize_for_prompt(rows: List[Dict[str, Any]]) -> str:
     return "HealthPlanet 過去7日:\n" + "\n".join(lines)
 
 def to_bigquery_rows(user_id: str, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """BigQuery用の行データに変換
-
-    同一タイムスタンプの体重(tag:6021)と体脂肪率(tag:6022)を1行にまとめ、
-    `weight` と `fat_percentage` に分割格納する。`value` や `tag` は使用しない。
     """
+    BigQuery用の行データに変換。
+    同一タイムスタンプの体重(tag:6021)と体脂肪率(tag:6022)を1行にまとめ、
+    weight / fat_percentage に格納する。tag / value は集計列としては使用しない。
+    """
+    # measured_at(ISO8601) をキーに集約
     rows: Dict[str, Dict[str, Any]] = {}
-    now = jst_now().isoformat()
+    now_iso = jst_now().isoformat()
 
     for item in raw_data.get("data", []):
         timestamp = item.get("date")
@@ -58,21 +66,27 @@ def to_bigquery_rows(user_id: str, raw_data: Dict[str, Any]) -> List[Dict[str, A
         if not timestamp or value in (None, ""):
             continue
 
-        measured_at = datetime.strptime(timestamp, "%Y%m%d%H%M%S").isoformat()
-        row = rows.setdefault(measured_at, {
-            "user_id": user_id,
-            "measured_at": measured_at,
-            "tag": None,
-            "value": None,
-            "unit": None,
-            "ingested": now,
-            "raw": [],
-            "weight": None,
-            "fat_percentage": None,
-        })
+        measured_at_iso = datetime.strptime(timestamp, "%Y%m%d%H%M%S").isoformat()
+        row = rows.setdefault(
+            measured_at_iso,
+            {
+                "user_id": user_id,
+                "measured_at": measured_at_iso,
+                "ingested": now_iso,
+                # まとめ先
+                "weight": None,
+                "fat_percentage": None,
+                # raw は後でモードに応じて整形
+                "raw": [],
+            },
+        )
 
-        float_value = float(value)
-        row["raw"].append(item)
+        # 値の割当て
+        try:
+            float_value = float(value)
+        except (TypeError, ValueError):
+            # 数値化できないものはスキップ
+            continue
 
         tag = item.get("tag")
         if tag == "6021":
@@ -80,10 +94,19 @@ def to_bigquery_rows(user_id: str, raw_data: Dict[str, Any]) -> List[Dict[str, A
         elif tag == "6022":
             row["fat_percentage"] = float_value
 
-    result = []
-    for row in rows.values():
-        row["raw"] = json.dumps(row["raw"], ensure_ascii=False)
-        result.append(row)
+        # 元データを保持（あとで string/record に変換）
+        row["raw"].append(item)
+
+    # BigQuery 送信用に raw をモードに合わせて整形
+    result: List[Dict[str, Any]] = []
+    for r in rows.values():
+        if RAW_FIELD_MODE == "string":
+            r["raw"] = json.dumps(r["raw"], ensure_ascii=False)
+        else:  # "record"
+            # RECORD/JSON 型に合わせてそのまま配列で渡す
+            # テーブルのスキーマ（REPEATED RECORD or JSON）に適合している必要があります
+            pass
+        result.append(r)
 
     return result
 
@@ -95,10 +118,10 @@ async def fetch_last7_data(user_id: str = "demo") -> Dict[str, Any]:
     
     return await fetch_innerscan_data(
         user_id=user_id,
-        date=1,  # 測定日付
-        tag="6021,6022",  # 体重・体脂肪率
+        date=1,                 # 測定日付
+        tag="6021,6022",        # 体重・体脂肪率
         from_dt=format_datetime(start),
-        to_dt=format_datetime(end)
+        to_dt=format_datetime(end),
     )
 
 def save_to_bigquery(user_id: str, raw_data: Dict[str, Any]) -> Dict[str, Any]:
