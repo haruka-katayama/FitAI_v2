@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any
 import json
 
+from google.cloud import bigquery
+
 from app.external.healthplanet_client import fetch_innerscan_data, jst_now, format_datetime
 from app.database.bigquery import bq_client
 from app.config import settings
@@ -128,13 +130,34 @@ def save_to_bigquery(user_id: str, raw_data: Dict[str, Any]) -> Dict[str, Any]:
     """Health PlanetデータをBigQueryに保存"""
     if not bq_client:
         return {"ok": False, "reason": "BigQuery not configured"}
-    
+
     rows = to_bigquery_rows(user_id, raw_data)
     if not rows:
         return {"ok": True, "saved": 0, "reason": "no data"}
-    
+
+    measured_ats = [r["measured_at"] for r in rows]
+    try:
+        query = f"""
+        SELECT FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%S', measured_at) AS measured_at
+        FROM `{settings.HP_BQ_TABLE}`
+        WHERE user_id = @user_id
+          AND FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%S', measured_at) IN UNNEST(@measured_ats)
+        """
+        job_config = bigquery.QueryJobConfig(query_parameters=[
+            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+            bigquery.ArrayQueryParameter("measured_ats", "STRING", measured_ats),
+        ])
+        existing_job = bq_client.query(query, job_config=job_config)
+        existing = {row.measured_at for row in existing_job.result()}
+        rows = [r for r in rows if r["measured_at"] not in existing]
+    except Exception as e:
+        print(f"[WARN] failed to check existing rows: {e}")
+
+    if not rows:
+        return {"ok": True, "saved": 0, "reason": "duplicate"}
+
     errors = bq_client.insert_rows_json(settings.HP_BQ_TABLE, rows)
     if errors:
         return {"ok": False, "errors": errors}
-    
+
     return {"ok": True, "saved": len(rows)}
