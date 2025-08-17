@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import json
 from typing import List, Dict, Any
 from app.external.healthplanet_client import fetch_innerscan_data, jst_now, format_datetime
 from app.database.bigquery import bq_client
@@ -43,26 +44,48 @@ def summarize_for_prompt(rows: List[Dict[str, Any]]) -> str:
     return "HealthPlanet 過去7日:\n" + "\n".join(lines)
 
 def to_bigquery_rows(user_id: str, raw_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """BigQuery用の行データに変換"""
-    rows: List[Dict[str, Any]] = []
+    """BigQuery用の行データに変換
+
+    同一タイムスタンプの体重(tag:6021)と体脂肪率(tag:6022)を1行にまとめ、
+    `weight` と `fat_percentage` に分割格納する。`value` や `tag` は使用しない。
+    """
+    rows: Dict[str, Dict[str, Any]] = {}
     now = jst_now().isoformat()
-    
+
     for item in raw_data.get("data", []):
+        timestamp = item.get("date")
         value = item.get("keydata")
-        if value in (None, ""):
+        if not timestamp or value in (None, ""):
             continue
-        
-        rows.append({
+
+        measured_at = datetime.strptime(timestamp, "%Y%m%d%H%M%S").isoformat()
+        row = rows.setdefault(measured_at, {
             "user_id": user_id,
-            "measured_at": datetime.strptime(item["date"], "%Y%m%d%H%M%S").isoformat(),
-            "tag": item.get("tag"),
-            "value": float(value),
-            "unit": item.get("unit") or None,
+            "measured_at": measured_at,
+            "tag": None,
+            "value": None,
+            "unit": None,
             "ingested": now,
-            "raw": item,
+            "raw": [],
+            "weight": None,
+            "fat_percentage": None,
         })
-    
-    return rows
+
+        float_value = float(value)
+        row["raw"].append(item)
+
+        tag = item.get("tag")
+        if tag == "6021":
+            row["weight"] = float_value
+        elif tag == "6022":
+            row["fat_percentage"] = float_value
+
+    result = []
+    for row in rows.values():
+        row["raw"] = json.dumps(row["raw"], ensure_ascii=False)
+        result.append(row)
+
+    return result
 
 async def fetch_last7_data(user_id: str = "demo") -> Dict[str, Any]:
     """過去7日間のHealth Planetデータを取得"""
