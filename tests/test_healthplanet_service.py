@@ -11,7 +11,7 @@ if str(ROOT) not in sys.path:
 from app.services.healthplanet_service import to_bigquery_rows
 
 
-def test_to_bigquery_rows_maps_weight_and_fat_percentage():
+def test_to_bigquery_rows_combines_weight_and_fat_percentage():
     raw_data = {
         "birth_date": "19920710",
         "data": [
@@ -23,12 +23,20 @@ def test_to_bigquery_rows_maps_weight_and_fat_percentage():
     }
 
     rows = to_bigquery_rows("demo", raw_data)
-    assert len(rows) == 2
 
-    weight_row = next(r for r in rows if r["tag"] == "6021")
-    assert weight_row["weight"] == pytest.approx(62.40)
-    assert weight_row["fat_percentage"] is None
+    # 体重・体脂肪率が同一タイムスタンプで1行に統合される
+    assert len(rows) == 1
 
-    fat_row = next(r for r in rows if r["tag"] == "6022")
-    assert fat_row["fat_percentage"] == pytest.approx(21.40)
-    assert fat_row["weight"] is None
+    row = rows[0]
+    # 基本カラム
+    assert row["user_id"] == "demo"
+    assert row["measured_at"].startswith("2025-08-16T00:26:00")
+    assert "raw" in row  # raw の型はスキーマ依存のため存在のみ確認
+
+    # 値のマッピング
+    assert row["weight"] == pytest.approx(62.40)
+    assert row["fat_percentage"] == pytest.approx(21.40)
+
+    # 実装では tag/value は出力しない想定（存在しないことを確認）
+    assert "tag" not in row
+    assert "value" not in row
