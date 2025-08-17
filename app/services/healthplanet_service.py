@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
+import json
+
 from app.external.healthplanet_client import fetch_innerscan_data, jst_now, format_datetime
 from app.database.bigquery import bq_client
 from app.config import settings
@@ -62,7 +64,7 @@ def to_bigquery_rows(user_id: str, raw_data: Dict[str, Any]) -> List[Dict[str, A
             "value": float_value,
             "unit": item.get("unit") or None,
             "ingested": now,
-            "raw": item,
+            "raw": json.dumps(item, ensure_ascii=False),
             "weight": float_value if tag == "6021" else None,
             "fat_percentage": float_value if tag == "6022" else None,
         })
