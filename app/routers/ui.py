@@ -31,6 +31,7 @@ async def ui_meal_image(
     x_api_token: str | None = Header(None, alias="x-api-token"),
     x_user_id: str | None = Header(None, alias="x-user-id"),
     when: str | None = Form(None),
+    memo: str | None = Form(None),
     file: UploadFile = File(...),
     dry: bool = Query(False),
 ):
@@ -74,7 +75,7 @@ async def ui_meal_image(
 
     try:
         logger.info(f"[MEAL_IMAGE] calling OpenAI, request_id={request_id}")
-        text = await vision_extract_meal_bytes(data, mime)
+        text = await vision_extract_meal_bytes(data, mime, memo)
         logger.info(f"[MEAL_IMAGE] OpenAI done, request_id={request_id}")
     except Exception as e:
         logger.exception(f"[MEAL_IMAGE] OpenAI error request_id={request_id}")
@@ -99,7 +100,7 @@ async def ui_meal_image(
         "mime": mime,
         "image_digest": image_digest,   # ←一本化（短縮版は使わない）
         "meal_kind": "other",
-        "notes": "",
+        "notes": memo or "",
         "user_id": user_id,             # ← payloadにも入れておく
     }
 
