@@ -6,7 +6,6 @@ from app.database.firestore import user_doc
 from app.database.bigquery import bq_client
 from google.cloud import bigquery
 from app.config import settings
-from app.utils.date_utils import to_when_date_str
 
 async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List[Dict[str, Any]]]:
     """
@@ -14,25 +13,44 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
     { "YYYY-MM-DD": [ {text,kcal,when,source}, ... ], ... }
     """
     tz_today = datetime.now(timezone.utc).astimezone().date()
-    start_date = (tz_today - timedelta(days=n-1)).strftime("%Y-%m-%d")
-    end_date   = tz_today.strftime("%Y-%m-%d")
-
-    q = (user_doc(user_id)
-         .collection("meals")
-         .where("when_date", ">=", start_date)
-         .where("when_date", "<=", end_date)
-         .order_by("when_date"))
+    start_date = (tz_today - timedelta(days=n - 1)).strftime("%Y-%m-%d")
+    end_date = tz_today.strftime("%Y-%m-%d")
 
     result: Dict[str, List[Dict[str, Any]]] = {}
-    for snap in q.stream():
-        d = snap.to_dict()
-        key = d.get("when_date") or (d.get("when", "")[:10])
-        result.setdefault(key, []).append({
-            "text": d.get("text", ""),
-            "kcal": d.get("kcal"),
-            "when": d.get("when"),
-            "source": d.get("source"),
-        })
+    if not bq_client:
+        return result
+
+    table_id = f"{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}"
+    query = f"""
+        SELECT when, when_date, text, kcal, source
+        FROM `{table_id}`
+        WHERE user_id = @user_id
+          AND when_date BETWEEN @start_date AND @end_date
+        ORDER BY when_date, when
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+            bigquery.ScalarQueryParameter("start_date", "STRING", start_date),
+            bigquery.ScalarQueryParameter("end_date", "STRING", end_date),
+        ]
+    )
+
+    try:
+        rows = bq_client.query(query, job_config=job_config)
+        for row in rows:
+            key = row.when_date or (row.when.strftime("%Y-%m-%d") if row.when else "")
+            result.setdefault(key, []).append(
+                {
+                    "text": row.text or "",
+                    "kcal": row.kcal,
+                    "when": row.when.isoformat() if row.when else None,
+                    "source": row.source,
+                }
+            )
+    except Exception as e:
+        print(f"[ERROR] BigQuery meals fetch failed: {e}")
+
     return result
 
 def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dict[str, Any]:
