@@ -23,15 +23,15 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
     table_id = f"{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}"
     query = f"""
         SELECT
-            when,
-            DATE(when) AS when_date,
+            `when`,
+            DATE(`when`) AS when_date,
             text,
             kcal,
             source
         FROM `{table_id}`
         WHERE user_id = @user_id
-          AND DATE(when) BETWEEN @start_date AND @end_date
-        ORDER BY when
+          AND DATE(`when`) BETWEEN @start_date AND @end_date
+        ORDER BY `when`
     """
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
@@ -59,7 +59,7 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
                 }
             )
     except Exception as e:
-        print(f"[ERROR] BigQuery meals fetch failed: {e}")
+        print(f"[ERROR] BigQuery meals fetch failed: {type(e).__name__}: {e}. query={query}")
 
     return result
 
