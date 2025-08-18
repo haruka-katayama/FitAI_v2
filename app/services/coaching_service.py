@@ -58,7 +58,7 @@ def build_weekly_prompt(
         lines.append(
             f"{d['date']}: 歩数{d['steps_total']}, 睡眠{d['sleep_line']}, "
             f"SpO₂{d['spo2_line']}, 消費カロリー{d['calories_total']}{weight_line}\n"
-            f"  食事:\n{meal_block}"
+            f"  食事と消費カロリー:\n{meal_block}"
         )
     body = "\n".join(lines)
 
