@@ -13,8 +13,8 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
     { "YYYY-MM-DD": [ {text,kcal,when,source}, ... ], ... }
     """
     tz_today = datetime.now(timezone.utc).astimezone().date()
-    start_date = (tz_today - timedelta(days=n - 1)).strftime("%Y-%m-%d")
-    end_date = tz_today.strftime("%Y-%m-%d")
+    start_date = tz_today - timedelta(days=n - 1)
+    end_date = tz_today
 
     result: Dict[str, List[Dict[str, Any]]] = {}
     if not bq_client:
@@ -22,24 +22,34 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
 
     table_id = f"{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}"
     query = f"""
-        SELECT when, when_date, text, kcal, source
+        SELECT
+            when,
+            DATE(when) AS when_date,
+            text,
+            kcal,
+            source
         FROM `{table_id}`
         WHERE user_id = @user_id
-          AND when_date BETWEEN @start_date AND @end_date
-        ORDER BY when_date, when
+          AND DATE(when) BETWEEN @start_date AND @end_date
+        ORDER BY when
     """
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
             bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
-            bigquery.ScalarQueryParameter("start_date", "STRING", start_date),
-            bigquery.ScalarQueryParameter("end_date", "STRING", end_date),
+            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
+            bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
         ]
     )
 
     try:
         rows = bq_client.query(query, job_config=job_config)
         for row in rows:
-            key = row.when_date or (row.when.strftime("%Y-%m-%d") if row.when else "")
+            key = ""
+            if getattr(row, "when_date", None):
+                key = str(row.when_date)[:10]
+            elif getattr(row, "when", None):
+                key = row.when.strftime("%Y-%m-%d") if hasattr(row.when, "strftime") else str(row.when)[:10]
+
             result.setdefault(key, []).append(
                 {
                     "text": row.text or "",
