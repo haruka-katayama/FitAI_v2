@@ -11,6 +11,8 @@ from app.config import settings
 from app.utils.auth_utils import require_token
 from app.utils.date_utils import to_when_date_str
 from app.database import get_latest_profile, user_doc, bq_upsert_profile
+from app.database.bigquery import bq_client
+from google.cloud import bigquery
 import hashlib
 import uuid
 import logging
@@ -217,6 +219,29 @@ def ui_get_profile(
     require_token(x_api_token)
     user_id = _resolve_user_id(x_user_id)
     profile = get_latest_profile(user_id) or {}
+
+    # BigQueryから最新の体重を取得し、プロフィールに反映
+    if bq_client:
+        try:
+            query = f"""
+                SELECT weight
+                FROM `{settings.HP_BQ_TABLE}`
+                WHERE user_id = @user_id
+                ORDER BY measured_at DESC
+                LIMIT 1
+            """
+            job_config = bigquery.QueryJobConfig(
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("user_id", "STRING", user_id)
+                ]
+            )
+            query_job = bq_client.query(query, job_config=job_config)
+            row = next(iter(query_job.result()), None)
+            if row and row.weight is not None:
+                profile["weight_kg"] = float(row.weight)
+        except Exception as e:
+            logger.exception("Failed to fetch latest weight: %s", e)
+
     return {"ok": True, "profile": profile}
 
 
