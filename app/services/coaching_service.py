@@ -24,7 +24,12 @@ def build_daily_prompt(day: Dict[str, Any]) -> str:
 あなたはヘルスケア&エクササイズのプロコーチです。
 500文字以内で今日の状態を要約し、明日に向けて1〜3つの具体的アクションを日本語で提案してください。"""
 
-def build_weekly_prompt(days: List[Dict[str, Any]], meals_by_day: Dict[str, List[Dict[str, Any]]], profile: Optional[Dict[str, Any]] = None) -> str:
+def build_weekly_prompt(
+    days: List[Dict[str, Any]],
+    meals_by_day: Dict[str, List[Dict[str, Any]]],
+    profile: Optional[Dict[str, Any]] = None,
+    hp_by_day: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> str:
     """コーチング用プロンプトを生成"""
     # 週次本文
     lines = []
@@ -40,9 +45,19 @@ def build_weekly_prompt(days: List[Dict[str, Any]], meals_by_day: Dict[str, List
                 meal_snippets.append(f"・{text}{kcal_part}")
         meal_block = "\n".join(meal_snippets) if meal_snippets else "（食事記録なし）"
 
+        weight_line = ""
+        if hp_by_day:
+            hp = hp_by_day.get(day_key)
+            if hp:
+                w = hp.get("weight_kg")
+                f = hp.get("body_fat_pct")
+                w_str = f"{w:.1f}kg" if isinstance(w, (int, float)) else "-"
+                f_str = f"{f:.1f}%" if isinstance(f, (int, float)) else "-"
+                weight_line = f", 体重{w_str}, 体脂肪率{f_str}"
+
         lines.append(
             f"{d['date']}: 歩数{d['steps_total']}, 睡眠{d['sleep_line']}, "
-            f"SpO₂{d['spo2_line']}, カロリー{d['calories_total']}\n"
+            f"SpO₂{d['spo2_line']}, カロリー{d['calories_total']}{weight_line}\n"
             f"  食事:\n{meal_block}"
         )
     body = "\n".join(lines)
@@ -174,7 +189,21 @@ async def weekly_coaching(dry: bool = False, show_prompt: bool = False) -> Dict[
         # 週次プロンプト準備
         meals_map = await meals_last_n_days(7, "demo")
         profile   = get_latest_profile("demo")
-        prompt    = build_weekly_prompt(days, meals_map, profile)
+
+        # HealthPlanet (体重・体脂肪) 直近7日
+        hp_map = {}
+        try:
+            from app.services.healthplanet_service import fetch_last7_data, parse_innerscan_for_prompt
+            raw_hp = await fetch_last7_data("demo")
+            hp_rows = parse_innerscan_for_prompt(raw_hp)
+            hp_map = {
+                f"{r['measured_at'][:4]}-{r['measured_at'][4:6]}-{r['measured_at'][6:8]}": r
+                for r in hp_rows
+            }
+        except Exception as e:
+            print(f"[WARN] HealthPlanet fetch failed: {e}")
+
+        prompt    = build_weekly_prompt(days, meals_map, profile, hp_map)
         
         print("\n=== WEEKLY PROMPT ===\n", prompt, "\n=== END PROMPT ===\n")
         
@@ -204,6 +233,7 @@ async def weekly_coaching(dry: bool = False, show_prompt: bool = False) -> Dict[
             "sent": send_res,
             "preview": msg,
             "meals_keys": list(meals_map.keys()),
+            "hp_keys": list(hp_map.keys()),
             "profile_used": bool(profile),
         }
         if show_prompt:
