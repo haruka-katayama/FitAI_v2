@@ -37,7 +37,7 @@ def build_weekly_prompt(
         day_key = d["date"]
         meals = meals_by_day.get(day_key, [])
         meal_snippets = []
-        for m in meals[:2]:
+        for m in meals:
             kcal_val = m.get("kcal")
             kcal_part = f"（~{int(kcal_val)}kcal）" if isinstance(kcal_val, (int, float)) else ""
             text = (m.get("text") or "").strip()
