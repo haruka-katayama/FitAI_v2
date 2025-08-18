@@ -13,8 +13,8 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
     { "YYYY-MM-DD": [ {text,kcal,when,source}, ... ], ... }
     """
     tz_today = datetime.now(timezone.utc).astimezone().date()
-    start_date = (tz_today - timedelta(days=n - 1)).strftime("%Y-%m-%d")
-    end_date = tz_today.strftime("%Y-%m-%d")
+    start_date = tz_today - timedelta(days=n - 1)
+    end_date = tz_today
 
     result: Dict[str, List[Dict[str, Any]]] = {}
     if not bq_client:
@@ -31,15 +31,19 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
             bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
-            bigquery.ScalarQueryParameter("start_date", "STRING", start_date),
-            bigquery.ScalarQueryParameter("end_date", "STRING", end_date),
+            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
+            bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
         ]
     )
 
     try:
         rows = bq_client.query(query, job_config=job_config)
         for row in rows:
-            key = row.when_date or (row.when.strftime("%Y-%m-%d") if row.when else "")
+            key = (
+                row.when_date.isoformat()
+                if row.when_date
+                else (row.when.strftime("%Y-%m-%d") if row.when else "")
+            )
             result.setdefault(key, []).append(
                 {
                     "text": row.text or "",
