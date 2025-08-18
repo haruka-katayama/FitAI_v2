@@ -1,4 +1,4 @@
-# app/services/meal_service.py - 修正版
+# app/services/meal_service.py - 修正版（コンフリクト解消済み）
 
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any
@@ -44,17 +44,17 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
     try:
         rows = bq_client.query(query, job_config=job_config)
         for row in rows:
-            key = ""
-            if getattr(row, "when_date", None):
-                key = str(row.when_date)[:10]
-            elif getattr(row, "when", None):
-                key = row.when.strftime("%Y-%m-%d") if hasattr(row.when, "strftime") else str(row.when)[:10]
-
+            # when_date があれば isoformat、無ければ when から "YYYY-MM-DD" を生成
+            key = (
+                row.when_date.isoformat()
+                if getattr(row, "when_date", None)
+                else (row.when.strftime("%Y-%m-%d") if getattr(row, "when", None) else "")
+            )
             result.setdefault(key, []).append(
                 {
                     "text": row.text or "",
                     "kcal": row.kcal,
-                    "when": row.when.isoformat() if row.when else None,
+                    "when": row.when.isoformat() if getattr(row, "when", None) else None,
                     "source": row.source,
                 }
             )
@@ -186,8 +186,6 @@ def create_meal_dedup_key(meal_data: Dict[str, Any], user_id: str) -> str:
     import json
     
     # 重複排除用のキーフィールドのみ抽出
-    # オプション項目によるわずかな違いで別データと判定されないよう、
-    # ユーザー・日付・本文・丸めた時刻のみをハッシュ化に利用する
     dedup_fields = {
         "user_id": user_id,
         "when_date": meal_data.get("when_date"),
@@ -195,11 +193,10 @@ def create_meal_dedup_key(meal_data: Dict[str, Any], user_id: str) -> str:
         # 時刻は分単位で丸める（秒の違いによる重複を防ぐ）
         "when_rounded": meal_data.get("when", "")[:16] if meal_data.get("when") else ""
     }
-    # 画像のハッシュ値がある場合は重複判定に含める
+    # 画像ハッシュがあれば重複判定に含める
     if meal_data.get("image_digest"):
         dedup_fields["image_digest"] = meal_data["image_digest"]
     
-    # JSONシリアライズしてハッシュ化
     key_json = json.dumps(dedup_fields, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(key_json.encode()).hexdigest()
 
@@ -228,7 +225,7 @@ def validate_meal_data(meal_data: Dict[str, Any]) -> Dict[str, Any]:
 
     # テキストの長さチェック
     text = meal_data.get("text", "")
-    if len(text) > 1000:  # 制限を設定
+    if len(text) > 1000:
         errors.append("text is too long (max 1000 characters)")
 
     notes = meal_data.get("notes") or ""
@@ -272,9 +269,7 @@ async def get_meal_stats(user_id: str = "demo", days: int = 7) -> Dict[str, Any]
         "calories_coverage": calorie_count / total_meals if total_meals > 0 else 0,
     }
 
-
 def get_meal_stats_sync(user_id: str = "demo", days: int = 7) -> Dict[str, Any]:
     """同期コンテキストから食事記録の統計情報を取得"""
     import asyncio
-
     return asyncio.run(get_meal_stats(user_id, days))
