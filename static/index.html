@@ -1541,13 +1541,14 @@
                     const mealDate = document.getElementById('meal-date').value;
                     const mealTime = document.getElementById('meal-time').value;
                     const mealMemo = document.getElementById('meal-memo').value;
-                    
+
                     const whenISO = `${mealDate}T${mealTime}:00`;
 
                     // FormData for file upload
                     const formData = new FormData();
                     formData.append('file', this.selectedFile);
                     formData.append('when', whenISO);
+                    formData.append('memo', mealMemo);
 
                     // トークンがあればヘッダーに付与して1回だけ送信
                     const headers = this.apiToken ? { 'x-api-token': this.apiToken } : {};
