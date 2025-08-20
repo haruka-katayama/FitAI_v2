@@ -341,30 +341,6 @@
             margin-bottom: 30px;
         }
 
-        .meal-tabs {
-            display: flex;
-            border-bottom: 2px solid #e1e5e9;
-            margin-bottom: 20px;
-        }
-
-        .meal-tab {
-            flex: 1;
-            padding: 15px 20px;
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            font-weight: 600;
-            color: #666;
-            transition: all 0.3s ease;
-            border-bottom: 3px solid transparent;
-        }
-
-        .meal-tab.active {
-            color: #ff6b35;
-            border-bottom-color: #ff6b35;
-            background: linear-gradient(135deg, rgba(255, 107, 53, 0.1), rgba(255, 23, 68, 0.05));
-            font-weight: 800;
-        }
 
         .upload-area {
             border: 3px dashed #ff6b35;
@@ -871,13 +847,6 @@
                 <p style="margin-bottom: 30px; color: #666; font-weight: 500;">画像アップロード後「登録する」をクリック 📸✨</p>
 
                 <div class="tabs-container">
-                    <div class="meal-tabs">
-                        <button class="meal-tab active" data-meal="breakfast">🌅 朝ごはん</button>
-                        <button class="meal-tab" data-meal="lunch">☀️ 昼ごはん</button>
-                        <button class="meal-tab" data-meal="dinner">🌙 夜ごはん</button>
-                        <button class="meal-tab" data-meal="other">🥪 その他</button>
-                    </div>
-
                     <div class="form-grid">
                         <div class="form-group">
                             <label>日付</label>
@@ -1032,7 +1001,6 @@
         class FitAIApp {
             constructor() {
                 this.currentPage = 'profile';
-                this.currentMealType = 'breakfast';
                 this.apiBaseUrl = '';
                 this.apiToken = localStorage.getItem('fitai_api_token') || '';
                 this.charts = {};
@@ -1094,13 +1062,6 @@
                 document.getElementById('profile-form').addEventListener('submit', (e) => {
                     e.preventDefault();
                     this.saveProfile();
-                });
-
-                // 食事タブ
-                document.querySelectorAll('.meal-tab').forEach(tab => {
-                    tab.addEventListener('click', (e) => {
-                        this.switchMealTab(e.target.dataset.meal);
-                    });
                 });
 
                 // ファイルアップロード
@@ -1331,17 +1292,6 @@
                 if (pageId === 'meal') {
                     this.setDefaultMealDateTime();
                 }
-            }
-
-            // 食事タブ切り替え
-            switchMealTab(mealType) {
-                this.currentMealType = mealType;
-                
-                document.querySelectorAll('.meal-tab').forEach(tab => {
-                    tab.classList.remove('active');
-                });
-                
-                document.querySelector(`[data-meal="${mealType}"]`).classList.add('active');
             }
 
             // API呼び出しヘルパー
@@ -1594,7 +1544,7 @@
                                     method: 'POST',
                                     body: JSON.stringify({
                                         when: whenISO,
-                                        text: `[${this.currentMealType}] ${mealMemo}`,
+                                        text: mealMemo,
                                         kcal: null
                                     })
                                 });
@@ -2080,7 +2030,6 @@ try {
             saveState() {
                 const state = {
                     currentPage: this.currentPage,
-                    currentMealType: this.currentMealType,
                     timestamp: new Date().toISOString()
                 };
                 localStorage.setItem('fitai_app_state', JSON.stringify(state));
@@ -2095,10 +2044,6 @@ try {
                         if (state.currentPage) {
                             this.currentPage = state.currentPage;
                             this.showPage(this.currentPage);
-                        }
-                        if (state.currentMealType) {
-                            this.currentMealType = state.currentMealType;
-                            this.switchMealTab(this.currentMealType);
                         }
                     } catch (error) {
                         console.error('Failed to restore state:', error);
