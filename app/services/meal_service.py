@@ -2,7 +2,6 @@
 
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any
-from app.database.firestore import user_doc
 from app.database.bigquery import bq_client
 from google.cloud import bigquery
 from app.config import settings
@@ -24,13 +23,13 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
     query = f"""
         SELECT
             `when`,
-            DATE(`when`) AS when_date,
+            when_date,
             text,
             kcal,
             source
         FROM `{table_id}`
         WHERE user_id = @user_id
-          AND DATE(`when`) BETWEEN @start_date AND @end_date
+          AND when_date BETWEEN @start_date AND @end_date
         ORDER BY `when`
     """
     job_config = bigquery.QueryJobConfig(
@@ -65,6 +64,7 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
 
 def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dict[str, Any]:
     """食事データをFirestoreとBigQueryに保存（重複排除機能付き）"""
+    from app.database.firestore import user_doc
 
     # 重複排除キーを生成し、保存前に存在チェック
     dedup_key = create_meal_dedup_key(meal_data, user_id)
