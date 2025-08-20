@@ -7,22 +7,22 @@ from app.database.firestore import get_latest_profile, user_doc
 from app.database.bigquery import bq_upsert_profile, bq_insert_rows, bq_client
 from app.config import settings
 
-# def build_daily_prompt(day: Dict[str, Any]) -> str:
-#     """日次コーチング用プロンプトを生成"""
-#     date = day.get("date", "")
-#     steps = day.get("steps_total", "0")
-#     sleep_line = day.get("sleep_line", "データなし")
-#     calories = day.get("calories_total", "0")
-#     spo2_line = day.get("spo2_line", "データなし")
+def build_daily_prompt(day: Dict[str, Any]) -> str:
+    """日次コーチング用プロンプトを生成"""
+    date = day.get("date", "")
+    steps = day.get("steps_total", "0")
+    sleep_line = day.get("sleep_line", "データなし")
+    calories = day.get("calories_total", "0")
+    spo2_line = day.get("spo2_line", "データなし")
     
-#     return f"""今日は {date}。Fitbit の今日のデータは:
-# - 歩数: {steps}
-# - 睡眠: {sleep_line}
-# - SpO₂: {spo2_line}
-# - 消費カロリー: {calories}
+    return f"""今日は {date}。Fitbit の今日のデータは:
+- 歩数: {steps}
+- 睡眠: {sleep_line}
+- SpO₂: {spo2_line}
+- 消費カロリー: {calories}
 
-# あなたはヘルスケア&エクササイズのプロコーチです。
-# 500文字以内で今日の状態を要約し、明日に向けて1〜3つの具体的アクションを日本語で提案してください。"""
+あなたはヘルスケア&エクササイズのプロコーチです。
+500文字以内で今日の状態を要約し、明日に向けて1〜3つの具体的アクションを日本語で提案してください。"""
 
 def build_weekly_prompt(
     days: List[Dict[str, Any]],
@@ -133,43 +133,43 @@ def build_weekly_prompt(
 
 すべて日本語で、専門性・個別性・具体性を重視して作成してください。"""
 
-# async def daily_coaching() -> Dict[str, Any]:
-#     """日次コーチングを実行"""
-#     try:
-#         # 循環インポートを避けるため、ここで import
-#         from app.services.fitbit_service import fitbit_today_core, save_fitbit_daily_firestore
+async def daily_coaching() -> Dict[str, Any]:
+    """日次コーチングを実行"""
+    try:
+        # 循環インポートを避けるため、ここで import
+        from app.services.fitbit_service import fitbit_today_core, save_fitbit_daily_firestore
         
-#         # 今日のFitbitデータ取得
-#         day = await fitbit_today_core()
+        # 今日のFitbitデータ取得
+        day = await fitbit_today_core()
         
-#         # Firestore保存
-#         saved = save_fitbit_daily_firestore("demo", day)
+        # Firestore保存
+        saved = save_fitbit_daily_firestore("demo", day)
         
-#         # BigQuery保存
-#         try:
-#             bq_insert_rows(settings.BQ_TABLE_FITBIT, [{
-#                 "user_id": "demo",
-#                 "date": saved["date"],
-#                 "steps_total": saved["steps_total"],
-#                 "sleep_line": saved["sleep_line"],
-#                 "spo2_line": saved["spo2_line"],
-#                 "calories_total": saved["calories_total"],
-#                 "ingested_at": datetime.now(timezone.utc).isoformat(),
-#             }])
-#         except Exception as e:
-#             print(f"[WARN] BQ insert (daily_coaching) failed: {e}")
+        # BigQuery保存
+        try:
+            bq_insert_rows(settings.BQ_TABLE_FITBIT, [{
+                "user_id": "demo",
+                "date": saved["date"],
+                "steps_total": saved["steps_total"],
+                "sleep_line": saved["sleep_line"],
+                "spo2_line": saved["spo2_line"],
+                "calories_total": saved["calories_total"],
+                "ingested_at": datetime.now(timezone.utc).isoformat(),
+            }])
+        except Exception as e:
+            print(f"[WARN] BQ insert (daily_coaching) failed: {e}")
         
-#         # GPTでコーチング生成
-#         prompt = build_daily_prompt(day)
-#         msg = await ask_gpt(prompt)
+        # GPTでコーチング生成
+        prompt = build_daily_prompt(day)
+        msg = await ask_gpt(prompt)
         
-#         # LINE送信
-#         res = push_line(f"⏰ 毎日のコーチング\n{msg}")
+        # LINE送信
+        res = push_line(f"⏰ 毎日のコーチング\n{msg}")
         
-#         return {"ok": True, "sent": res, "preview": msg, "saved": saved}
-#     except Exception as e:
-#         push_line(f"⚠️ cronエラー: {e}")
-#         return {"ok": False, "error": str(e)}
+        return {"ok": True, "sent": res, "preview": msg, "saved": saved}
+    except Exception as e:
+        push_line(f"⚠️ cronエラー: {e}")
+        return {"ok": False, "error": str(e)}
 
 async def weekly_coaching(dry: bool = False, show_prompt: bool = False) -> Dict[str, Any]:
     """コーチングを実行"""
@@ -247,80 +247,80 @@ async def weekly_coaching(dry: bool = False, show_prompt: bool = False) -> Dict[
         print(f"[FATAL] weekly_coaching error: {e}")
         return {"ok": False, "where": "weekly_coaching", "error": str(e)}
 
-# async def monthly_coaching() -> Dict[str, Any]:
-#     """月次コーチングを実行"""
-#     if not bq_client:
-#         return {"ok": False, "error": "BigQuery not configured"}
+async def monthly_coaching() -> Dict[str, Any]:
+    """月次コーチングを実行"""
+    if not bq_client:
+        return {"ok": False, "error": "BigQuery not configured"}
 
-#     def q(sql: str):
-#         return list(bq_client.query(sql).result())
+    def q(sql: str):
+        return list(bq_client.query(sql).result())
 
-#     fitbit_sql = f"""
-#     WITH d AS (
-#       SELECT DATE(date) AS d, steps_total, calories_total
-#       FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_FITBIT}`
-#       WHERE user_id='demo'
-#         AND date BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 29 DAY) AND CURRENT_DATE()
-#     )
-#     SELECT COUNT(*) days, AVG(steps_total) avg_steps, MIN(steps_total) min_steps, MAX(steps_total) max_steps,
-#            AVG(calories_total) avg_cal, MIN(calories_total) min_cal, MAX(calories_total) max_cal
-#     FROM d
-#     """
+    fitbit_sql = f"""
+    WITH d AS (
+      SELECT DATE(date) AS d, steps_total, calories_total
+      FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_FITBIT}`
+      WHERE user_id='demo'
+        AND date BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 29 DAY) AND CURRENT_DATE()
+    )
+    SELECT COUNT(*) days, AVG(steps_total) avg_steps, MIN(steps_total) min_steps, MAX(steps_total) max_steps,
+           AVG(calories_total) avg_cal, MIN(calories_total) min_cal, MAX(calories_total) max_cal
+    FROM d
+    """
 
-#     meals_sql = f"""
-#     SELECT when_date, text
-#     FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}`
-#     WHERE user_id='demo'
-#       AND when_date BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 29 DAY) AND CURRENT_DATE()
-#     ORDER BY when_date DESC
-#     LIMIT 10
-#     """
+    meals_sql = f"""
+    SELECT when_date, text
+    FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}`
+    WHERE user_id='demo'
+      AND when_date BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 29 DAY) AND CURRENT_DATE()
+    ORDER BY when_date DESC
+    LIMIT 10
+    """
 
-#     fb = q(fitbit_sql)[0]
-#     meals = q(meals_sql)
+    fb = q(fitbit_sql)[0]
+    meals = q(meals_sql)
 
-#     meal_lines = "\n".join([f"- {r['when_date']}: {r['text']}" for r in meals])
-#     month_str = datetime.now(timezone.utc).astimezone().strftime("%Y-%m")
-#     prompt = f"""
-# あなたはヘルスケア＆栄養のプロコーチです。以下は{month_str}の30日分ダイジェストです。
+    meal_lines = "\n".join([f"- {r['when_date']}: {r['text']}" for r in meals])
+    month_str = datetime.now(timezone.utc).astimezone().strftime("%Y-%m")
+    prompt = f"""
+あなたはヘルスケア＆栄養のプロコーチです。以下は{month_str}の30日分ダイジェストです。
 
-# [活動・消費]
-# - 期間日数: {int(fb['days'])}日
-# - 歩数: 平均 {int(fb['avg_steps'])}、最小 {int(fb['min_steps'])}、最大 {int(fb['max_steps'])}
-# - 消費カロリー: 平均 {int(fb['avg_cal'])}、最小 {int(fb['min_cal'])}、最大 {int(fb['max_cal'])}
+[活動・消費]
+- 期間日数: {int(fb['days'])}日
+- 歩数: 平均 {int(fb['avg_steps'])}、最小 {int(fb['min_steps'])}、最大 {int(fb['max_steps'])}
+- 消費カロリー: 平均 {int(fb['avg_cal'])}、最小 {int(fb['min_cal'])}、最大 {int(fb['max_cal'])}
 
-# [食事（代表10件）]
-# {meal_lines}
+[食事（代表10件）]
+{meal_lines}
 
-# お願い：
-# 1) この30日を「良かった点／改善点／注意すべき兆候」に分けて要約（300〜500字）
-# 2) 来月の具体アクションを最大5つ（食事・運動・睡眠の観点で）
-# 3) 実行チェックリスト（5箇条、短く）
-# """
+お願い：
+1) この30日を「良かった点／改善点／注意すべき兆候」に分けて要約（300〜500字）
+2) 来月の具体アクションを最大5つ（食事・運動・睡眠の観点で）
+3) 実行チェックリスト（5箇条、短く）
+"""
 
-#     monthly_text = await ask_gpt(prompt)
+    monthly_text = await ask_gpt(prompt)
 
-#     # Firestore保存
-#     user_doc("demo").collection("coach_monthly").document(month_str).set({
-#         "month": month_str,
-#         "text": monthly_text,
-#         "created_at": datetime.now(timezone.utc).isoformat(),
-#         "stats": {
-#             "avg_steps": int(fb['avg_steps']), "min_steps": int(fb['min_steps']), "max_steps": int(fb['max_steps']),
-#             "avg_cal": int(fb['avg_cal']), "min_cal": int(fb['min_cal']), "max_cal": int(fb['max_cal']),
-#         }
-#     }, merge=True)
+    # Firestore保存
+    user_doc("demo").collection("coach_monthly").document(month_str).set({
+        "month": month_str,
+        "text": monthly_text,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "stats": {
+            "avg_steps": int(fb['avg_steps']), "min_steps": int(fb['min_steps']), "max_steps": int(fb['max_steps']),
+            "avg_cal": int(fb['avg_cal']), "min_cal": int(fb['min_cal']), "max_cal": int(fb['max_cal']),
+        }
+    }, merge=True)
 
-#     # BigQuery保存
-#     try:
-#         bq_insert_rows(settings.BQ_TABLE_MONTHLY, [{
-#             "user_id": "demo",
-#             "month": month_str,
-#             "summary_text": monthly_text,
-#             "created_at": datetime.now(timezone.utc).isoformat(),
-#         }])
-#     except Exception:
-#         pass
+    # BigQuery保存
+    try:
+        bq_insert_rows(settings.BQ_TABLE_MONTHLY, [{
+            "user_id": "demo",
+            "month": month_str,
+            "summary_text": monthly_text,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }])
+    except Exception:
+        pass
 
-#     push_line(f"📅 {month_str} の振り返りができました！")
-#     return {"ok": True, "month": month_str, "preview": monthly_text[:400]}
+    push_line(f"📅 {month_str} の振り返りができました！")
+    return {"ok": True, "month": month_str, "preview": monthly_text[:400]}
