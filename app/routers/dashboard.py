@@ -2,6 +2,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
+import numbers
 from google.cloud import bigquery
 from app.database.bigquery import bq_client
 from app.config import settings
@@ -78,11 +79,7 @@ async def get_meals_dashboard_data(
     try:
         # 食事データクエリ
         meals_query = f"""
-        SELECT 
-            when_date,
-            text,
-            kcal,
-            source
+        SELECT * EXCEPT(user_id)
         FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}`
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
@@ -103,24 +100,35 @@ async def get_meals_dashboard_data(
         # 日付別にグループ化
         meals_by_date: Dict[str, List[Dict[str, Any]]] = {}
         daily_calories: Dict[str, float] = {}
-        
+
         for row in results:
-            date_str = row.when_date.strftime("%Y-%m-%d")
-            
+            row_dict = dict(row)
+            date_obj = row_dict.pop("when_date")
+            date_str = date_obj.strftime("%Y-%m-%d")
+
+            # 不要なカラムを削除
+            row_dict.pop("source", None)
+
+            meal_data: Dict[str, Any] = {}
+            for key, value in row_dict.items():
+                if value is None:
+                    meal_data[key] = None
+                elif hasattr(value, "isoformat"):
+                    meal_data[key] = value.isoformat()
+                elif isinstance(value, numbers.Number):
+                    meal_data[key] = float(value)
+                else:
+                    meal_data[key] = value
+
             if date_str not in meals_by_date:
                 meals_by_date[date_str] = []
                 daily_calories[date_str] = 0
-            
-            meal_data = {
-                "text": row.text,
-                "kcal": float(row.kcal) if row.kcal else None,
-                "source": row.source
-            }
-            
+
             meals_by_date[date_str].append(meal_data)
-            
-            if row.kcal:
-                daily_calories[date_str] += float(row.kcal)
+
+            kcal_val = meal_data.get("kcal")
+            if kcal_val:
+                daily_calories[date_str] += float(kcal_val)
         
         # 期間内の全日付でカロリーデータを準備
         start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
