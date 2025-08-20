@@ -86,7 +86,7 @@ async def get_meals_dashboard_data(
         FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}`
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
-        ORDER BY when_date ASC, when ASC
+        ORDER BY when_date ASC, `when` ASC
         """
         
         job_config = bigquery.QueryJobConfig(
@@ -336,7 +336,7 @@ async def get_dashboard_summary(
         FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}`
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
-        ORDER BY when_date ASC, when ASC
+        ORDER BY when_date ASC, `when` ASC
         """
 
         meals_config = bigquery.QueryJobConfig(query_parameters=[
