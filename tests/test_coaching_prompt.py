@@ -47,3 +47,21 @@ def test_build_weekly_prompt_includes_all_meals():
     assert "・Breakfast（~300kcal）" in prompt
     assert "・Lunch（~500kcal）" in prompt
     assert "・Dinner（~700kcal）" in prompt
+
+
+def test_build_weekly_prompt_includes_coach_prompt():
+    days = [
+        {
+            "date": "2025-01-01",
+            "steps_total": "1000",
+            "sleep_line": "7h",
+            "spo2_line": "98",
+            "calories_total": "2000",
+        }
+    ]
+    meals_by_day = {"2025-01-01": []}
+    coach_prompt = "キャラクターAの口調で話してください。"
+
+    prompt = build_weekly_prompt(days, meals_by_day, coach_prompt=coach_prompt)
+
+    assert coach_prompt in prompt

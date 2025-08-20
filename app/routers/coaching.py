@@ -8,6 +8,13 @@ import httpx
 
 router = APIRouter(tags=["coaching"])
 
+CHARACTER_PROMPTS = {
+    "A": "キャラクターAの口調で話してください。",
+    "B": "キャラクターBの口調で話してください。",
+    "C": "キャラクターCの口調で話してください。",
+    "D": "キャラクターDの口調で話してください。",
+}
+
 @router.get("/now")
 async def coach_now():
     """今すぐコーチング"""
@@ -37,10 +44,15 @@ async def coach_now_debug():
         return JSONResponse({"ok": False, "error": repr(e)}, status_code=500)
 
 @router.get("/weekly")
-async def coach_weekly(dry: bool = False, show_prompt: bool = False):
+async def coach_weekly(
+    dry: bool = False,
+    show_prompt: bool = False,
+    character: str | None = None,
+):
     """週次コーチング"""
     try:
-        result = await weekly_coaching(dry, show_prompt)
+        coach_prompt = CHARACTER_PROMPTS.get(character) if character else None
+        result = await weekly_coaching(dry, show_prompt, coach_prompt)
         return result
     except Exception as e:
         return JSONResponse({"ok": False, "where": "coach_weekly", "error": repr(e)}, status_code=500)
