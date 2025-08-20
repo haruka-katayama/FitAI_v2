@@ -748,15 +748,33 @@
         }
 
         .coach-option {
-            width: 120px;
-            height: 120px;
+            width: 180px;
             border: 2px dashed #ccc;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: center;
+            padding: 10px;
             cursor: pointer;
             border-radius: 10px;
             background: #fff;
+            text-align: center;
+        }
+
+        .coach-option img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .coach-name {
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .coach-intro {
+            font-size: 0.85em;
+            color: #555;
         }
 
         .coach-option.selected {
@@ -889,15 +907,23 @@
                 <div class="coach-grid">
                     <div class="coach-option" data-character="A">
                         <img src="/static/coach_A.png" alt="朝日 太陽">
+                        <div class="coach-name">朝日 太陽</div>
+                        <div class="coach-intro">明るく元気にあなたをサポート！</div>
                     </div>
                     <div class="coach-option" data-character="B">
                         <img src="/static/coach_B.png" alt="黒崎 刃">
+                        <div class="coach-name">黒崎 刃</div>
+                        <div class="coach-intro">クールに厳しく結果を追求します。</div>
                     </div>
                     <div class="coach-option" data-character="C">
                         <img src="/static/coach_C.png" alt="桜井 美優">
+                        <div class="coach-name">桜井 美優</div>
+                        <div class="coach-intro">優しく寄り添い一緒に頑張ります。</div>
                     </div>
                     <div class="coach-option" data-character="D">
                         <img src="/static/coach_D.png" alt="神崎 燐">
+                        <div class="coach-name">神崎 燐</div>
+                        <div class="coach-intro">分析力で最適なトレーニングを提案。</div>
                     </div>
                 </div>
             </div>
