@@ -29,6 +29,7 @@ def build_weekly_prompt(
     meals_by_day: Dict[str, List[Dict[str, Any]]],
     profile: Optional[Dict[str, Any]] = None,
     hp_by_day: Optional[Dict[str, Dict[str, Any]]] = None,
+    coach_prompt: Optional[str] = None,
 ) -> str:
     """コーチング用プロンプトを生成"""
     # 週次本文
@@ -106,6 +107,7 @@ def build_weekly_prompt(
         add("アレルギー", "allergies")
 
     profile_block = "\n".join(prof_lines) if prof_lines else "（プロフィール未設定）"
+    cp = f" {coach_prompt}" if coach_prompt else ""
 
     return f"""過去7日間のヘルスデータと食事記録です:
 {body}
@@ -113,7 +115,7 @@ def build_weekly_prompt(
 [プロフィール抜粋]
 {profile_block}
 
-あなたはヘルスケア&栄養のプロコーチです。
+あなたはヘルスケア&栄養のプロコーチです。{cp}
 すべての分析と提案は、ここまでに記載されたユーザーのプロフィール（年齢、性別、身長、体重、目標体重、運動目的、嗜好、既往歴、生活習慣、過去7日間のデータ）を必ず参照して行ってください。
 返答は以下の構成を必須とします。
 1.良かった点
@@ -171,7 +173,11 @@ async def daily_coaching() -> Dict[str, Any]:
         push_line(f"⚠️ cronエラー: {e}")
         return {"ok": False, "error": str(e)}
 
-async def weekly_coaching(dry: bool = False, show_prompt: bool = False) -> Dict[str, Any]:
+async def weekly_coaching(
+    dry: bool = False,
+    show_prompt: bool = False,
+    coach_prompt: Optional[str] = None,
+) -> Dict[str, Any]:
     """コーチングを実行"""
     try:
         # 循環インポートを避けるため、ここで import
@@ -205,7 +211,7 @@ async def weekly_coaching(dry: bool = False, show_prompt: bool = False) -> Dict[
         except Exception as e:
             print(f"[WARN] HealthPlanet fetch failed: {e}")
 
-        prompt    = build_weekly_prompt(days, meals_map, profile, hp_map)
+        prompt    = build_weekly_prompt(days, meals_map, profile, hp_map, coach_prompt)
         
         print("\n=== WEEKLY PROMPT ===\n", prompt, "\n=== END PROMPT ===\n")
         

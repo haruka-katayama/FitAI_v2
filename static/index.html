@@ -738,6 +738,31 @@
         #meals-table th {
             background-color: #f9f9f9;
         }
+
+        .coach-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .coach-option {
+            width: 120px;
+            height: 120px;
+            border: 2px dashed #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 10px;
+            background: #fff;
+        }
+
+        .coach-option.selected {
+            border-color: #ff6b35;
+            background: rgba(255,107,53,0.1);
+        }
     </style>
 </head>
 <body>
@@ -759,6 +784,7 @@
         <div class="nav-container">
             <div class="nav-tabs">
                 <button class="nav-tab active" data-page="profile">💪 ユーザー情報入力</button>
+                <button class="nav-tab" data-page="coach-setting">🎭 コーチキャラクター設定</button>
                 <button class="nav-tab" data-page="meal">🍚 食事画像アップロード</button>
                 <button class="nav-tab" data-page="coaching">🏋️ AIコーチング</button>
                 <button class="nav-tab" data-page="dashboard">📊 ダッシュボード</button>
@@ -854,6 +880,18 @@
                 </form>
 
                 <div id="profile-status"></div>
+            </div>
+            <!-- コーチキャラクター設定ページ -->
+            <div id="coach-setting" class="page">
+                <div class="section-title">
+                    🎭 コーチキャラクターを選択
+                </div>
+                <div class="coach-grid">
+                    <div class="coach-option" data-character="A">キャラクターA</div>
+                    <div class="coach-option" data-character="B">キャラクターB</div>
+                    <div class="coach-option" data-character="C">キャラクターC</div>
+                    <div class="coach-option" data-character="D">キャラクターD</div>
+                </div>
             </div>
 
             <!-- 食事画像アップロードページ -->
@@ -1031,6 +1069,7 @@
                 this.charts = {};
                 this.selectedFile = null;
                 this.isUploading = false;
+                this.selectedCoach = localStorage.getItem('fitai_coach') || 'A';
                 // PASTEされたデータに基づく既往歴オプション
                 this.pastHistoryOptions = [
                     {value: 'hypertension', label: '高血圧'},
@@ -1071,6 +1110,7 @@
                 document.getElementById('start-date').value = this.formatDate(sevenDaysAgo);
                 document.getElementById('end-date').value = this.formatDate(today);
                 this.setDefaultMealDateTime();
+                this.selectCoach(this.selectedCoach);
             }
 
             // イベントリスナー設定
@@ -1080,6 +1120,13 @@
                     tab.addEventListener('click', (e) => {
                         const page = e.currentTarget.dataset.page;
                         this.navigateToPage(page);
+                    });
+                });
+
+                // コーチキャラクター選択
+                document.querySelectorAll('.coach-option').forEach(opt => {
+                    opt.addEventListener('click', (e) => {
+                        this.selectCoach(e.currentTarget.dataset.character);
                     });
                 });
 
@@ -1621,6 +1668,15 @@
                 this.setDefaultMealDateTime();
             }
 
+            // コーチキャラクター選択
+            selectCoach(character) {
+                this.selectedCoach = character;
+                localStorage.setItem('fitai_coach', character);
+                document.querySelectorAll('.coach-option').forEach(opt => {
+                    opt.classList.toggle('selected', opt.dataset.character === character);
+                });
+            }
+
             // AIコーチング実行
             async runCoaching() {
                 const coachingBtn = document.getElementById('coaching-btn');
@@ -1630,8 +1686,11 @@
                 coachingBtn.innerHTML = '<span class="loading-spinner"></span> 実行中...';
 
                 try {
-                    const params = showPrompt ? '?show_prompt=1' : '';
-                    const response = await this.apiCall(`/coach/weekly${params}`);
+                    const params = new URLSearchParams();
+                    if (showPrompt) params.set('show_prompt', '1');
+                    if (this.selectedCoach) params.set('character', this.selectedCoach);
+                    const query = params.toString();
+                    const response = await this.apiCall(`/coach/weekly${query ? `?${query}` : ''}`);
 
                     if (response.ok) {
                         this.showStatus('coaching-status', '✅ コーチングを実行しました', 'success');
