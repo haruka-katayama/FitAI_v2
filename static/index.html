@@ -721,6 +721,23 @@
             from { transform: translateY(100%); }
             to { transform: translateY(0); }
         }
+
+        .meal-table-container {
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+
+        #meals-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #meals-table th, #meals-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        #meals-table th {
+            background-color: #f9f9f9;
+        }
     </style>
 </head>
 <body>
@@ -975,6 +992,21 @@
                             <canvas id="body-fat-chart"></canvas>
                         </div>
                     </div>
+                </div>
+
+                <div class="meal-table-container">
+                    <h3>🍽️ 食事一覧</h3>
+                    <table id="meals-table">
+                        <thead>
+                            <tr>
+                                <th>日付</th>
+                                <th>内容</th>
+                                <th>カロリー</th>
+                                <th>ソース</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
                 </div>
 
                 <div id="dashboard-status"></div>
@@ -1985,7 +2017,35 @@ try {
                 this.charts.bodyFat.update();
               }
 
+              if (data.meals_by_date) {
+                this.renderMealsTable(data.meals_by_date);
+              }
+
               // 既存のサマリー更新はそのまま
+            }
+
+            renderMealsTable(mealsByDate) {
+              const tbody = document.querySelector('#meals-table tbody');
+              if (!tbody) return;
+              tbody.innerHTML = '';
+
+              const dates = Object.keys(mealsByDate || {}).sort();
+              for (const date of dates) {
+                const meals = mealsByDate[date] || [];
+                if (meals.length === 0) {
+                  const tr = document.createElement('tr');
+                  tr.innerHTML = `<td>${date}</td><td colspan="3">--</td>`;
+                  tbody.appendChild(tr);
+                  continue;
+                }
+                for (const meal of meals) {
+                  const tr = document.createElement('tr');
+                  const kcal = meal.kcal !== undefined && meal.kcal !== null ? meal.kcal : '';
+                  const source = meal.source || '';
+                  tr.innerHTML = `<td>${date}</td><td>${meal.text}</td><td>${kcal}</td><td>${source}</td>`;
+                  tbody.appendChild(tr);
+                }
+              }
             }
 
             // 期間設定

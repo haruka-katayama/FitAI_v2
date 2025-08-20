@@ -326,6 +326,39 @@ async def get_dashboard_summary(
             for row in steps_rows
         }
 
+        # 食事データの取得
+        meals_query = f"""
+        SELECT
+            when_date,
+            text,
+            kcal,
+            source
+        FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}`
+        WHERE user_id = @user_id
+          AND when_date BETWEEN @start_date AND @end_date
+        ORDER BY when_date ASC, when ASC
+        """
+
+        meals_config = bigquery.QueryJobConfig(query_parameters=[
+            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
+            bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
+        ])
+
+        meals_job = bq_client.query(meals_query, job_config=meals_config)
+        meals_rows = list(meals_job.result())
+
+        meals_by_date: Dict[str, List[Dict[str, Any]]] = {}
+        for row in meals_rows:
+            date_str = row.when_date.strftime("%Y-%m-%d")
+            if date_str not in meals_by_date:
+                meals_by_date[date_str] = []
+            meals_by_date[date_str].append({
+                "text": row.text,
+                "kcal": float(row.kcal) if row.kcal is not None else None,
+                "source": row.source,
+            })
+
         # 期間内の全日付リストを作成
         start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
         end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
@@ -362,6 +395,7 @@ async def get_dashboard_summary(
                 "weight_kg": weights,
                 "fat_percentage": fats,
                 "steps_total": steps,
+                "meals_by_date": meals_by_date,
             },
         }
 
