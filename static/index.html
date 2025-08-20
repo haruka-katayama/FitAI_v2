@@ -997,14 +997,7 @@
                 <div class="meal-table-container">
                     <h3>🍽️ 食事一覧</h3>
                     <table id="meals-table">
-                        <thead>
-                            <tr>
-                                <th>日付</th>
-                                <th>内容</th>
-                                <th>カロリー</th>
-                                <th>ソース</th>
-                            </tr>
-                        </thead>
+                        <thead><tr></tr></thead>
                         <tbody></tbody>
                     </table>
                 </div>
@@ -2025,24 +2018,42 @@ try {
             }
 
             renderMealsTable(mealsByDate) {
-              const tbody = document.querySelector('#meals-table tbody');
-              if (!tbody) return;
+              const table = document.querySelector('#meals-table');
+              if (!table) return;
+              const tbody = table.querySelector('tbody');
+              const theadRow = table.querySelector('thead tr');
               tbody.innerHTML = '';
+              theadRow.innerHTML = '';
 
               const dates = Object.keys(mealsByDate || {}).sort();
+              let columns = [];
+
+              for (const date of dates) {
+                const meals = mealsByDate[date] || [];
+                if (meals.length > 0) {
+                  columns = Object.keys(meals[0]).filter(col => col !== 'source');
+                  break;
+                }
+              }
+
+              theadRow.innerHTML = ['<th>日付</th>', ...columns.map(c => `<th>${c}</th>`)].join('');
+
               for (const date of dates) {
                 const meals = mealsByDate[date] || [];
                 if (meals.length === 0) {
                   const tr = document.createElement('tr');
-                  tr.innerHTML = `<td>${date}</td><td colspan="3">--</td>`;
+                  const colspan = Math.max(columns.length, 1);
+                  tr.innerHTML = `<td>${date}</td><td colspan="${colspan}">--</td>`;
                   tbody.appendChild(tr);
                   continue;
                 }
                 for (const meal of meals) {
                   const tr = document.createElement('tr');
-                  const kcal = meal.kcal !== undefined && meal.kcal !== null ? meal.kcal : '';
-                  const source = meal.source || '';
-                  tr.innerHTML = `<td>${date}</td><td>${meal.text}</td><td>${kcal}</td><td>${source}</td>`;
+                  const cells = columns.map(col => {
+                    const val = meal[col] !== undefined && meal[col] !== null ? meal[col] : '';
+                    return `<td>${val}</td>`;
+                  }).join('');
+                  tr.innerHTML = `<td>${date}</td>${cells}`;
                   tbody.appendChild(tr);
                 }
               }
