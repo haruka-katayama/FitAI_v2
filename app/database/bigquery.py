@@ -2,7 +2,7 @@
 
 from google.cloud import bigquery
 from google.auth.exceptions import DefaultCredentialsError
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from typing import List, Dict, Any
 from app.config import settings
 import hashlib
@@ -253,9 +253,11 @@ def bq_upsert_fitbit_days(user_id: str, days: List[Dict[str, Any]]) -> Dict[str,
     
     rows = []
     row_ids = []
+    dates: List[date] = []
     for d in days:
         if not d.get("date"):
             continue
+        row_date = datetime.strptime(d["date"], "%Y-%m-%d").date()
         row = {
             "user_id": user_id,
             "date": d["date"],                     # "YYYY-MM-DD"
@@ -266,6 +268,7 @@ def bq_upsert_fitbit_days(user_id: str, days: List[Dict[str, Any]]) -> Dict[str,
             "ingested_at": datetime.now(timezone.utc).isoformat(),
         }
         rows.append(row)
+        dates.append(row_date)
         # 同一 user_id + date で同一IDを使う（idempotent）
         row_ids.append(f"{user_id}|{row['date']}")
 
@@ -273,6 +276,19 @@ def bq_upsert_fitbit_days(user_id: str, days: List[Dict[str, Any]]) -> Dict[str,
         return {"ok": True, "reason": "no data to insert", "count": 0}
 
     try:
+        # 既存の同じ日付の行を削除し、完全な上書きを行う
+        delete_query = f"""
+        DELETE FROM `{table_id}`
+        WHERE user_id = @user_id AND date IN UNNEST(@dates)
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+                bigquery.ArrayQueryParameter("dates", "DATE", dates),
+            ]
+        )
+        bq_client.query(delete_query, job_config=job_config).result()
+
         errors = bq_client.insert_rows_json(
             table_id, rows, row_ids=row_ids, ignore_unknown_values=True
         )
