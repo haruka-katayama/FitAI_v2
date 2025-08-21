@@ -59,6 +59,18 @@ async def ui_meal_image(
             status_code=400,
         )
 
+    max_size = 1024 * 1024  # 1MB
+    if len(data) > max_size:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "File too large",
+                "message": "ファイルサイズを1MB未満にしてください",
+                "request_id": request_id,
+            },
+            status_code=400,
+        )
+
     if dry:
         return {
             "ok": True,
@@ -223,6 +235,17 @@ async def ui_meal_image_preview(
 
     if len(data) == 0:
         return JSONResponse({"ok": False, "error": "Empty file"}, status_code=400)
+
+    max_size = 1024 * 1024  # 1MB
+    if len(data) > max_size:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "File too large",
+                "message": "ファイルサイズを1MB未満にしてください",
+            },
+            status_code=400,
+        )
 
     if not settings.OPENAI_API_KEY:
         return JSONResponse({"ok": False, "error": "OPENAI_API_KEY not set"}, status_code=500)
