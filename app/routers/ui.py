@@ -124,7 +124,6 @@ async def ui_meal_image(
         "image_digest": image_digest,   # ←一本化（短縮版は使わない）
         "image_base64": image_base64,
         "meal_kind": "other",
-        "notes": memo or "",
         "user_id": user_id,             # ← payloadにも入れておく
     }
 
