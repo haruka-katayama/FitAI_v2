@@ -27,7 +27,7 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
             text,
             kcal,
             source,
-            image_base64
+            TO_BASE64(image_blob) AS image_base64
         FROM `{table_id}`
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
