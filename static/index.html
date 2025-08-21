@@ -805,6 +805,14 @@
             border-color: #ff6b35;
             background: rgba(255,107,53,0.1);
         }
+
+        /* coachingページが active の時だけ縦並び＋余白 */
+        #coaching.page.active {
+            display: flex;          /* .page.active の display:block を上書き */
+            flex-direction: column;
+            gap: 24px;              /* ここで coach-grid と下の<p>の間にも余白が入る */
+        }
+
     </style>
 </head>
 <body>
