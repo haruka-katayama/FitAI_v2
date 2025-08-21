@@ -101,19 +101,7 @@ async def get_meals_dashboard_data(
         return JSONResponse({"ok": False, "error": "BigQuery not configured"}, status_code=500)
 
     try:
-        # 1本目: 画像が既に Base64 文字列で保存されている想定（image_base64 カラムあり）
-        meals_query_primary = f"""
-        SELECT
-            when_date,
-            image_base64,
-            kcal
-        FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS_DASHBOARD}`
-        WHERE user_id = @user_id
-          AND when_date BETWEEN @start_date AND @end_date
-        ORDER BY when_date DESC, `when` DESC
-        """
-        # 2本目: 画像が BLOB で保存されている想定（image_blob を Base64 化して返却）
-        meals_query_fallback = f"""
+        meals_query = f"""
         SELECT
             when_date,
             image_base64,
@@ -130,7 +118,7 @@ async def get_meals_dashboard_data(
             bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
         ]
 
-        results = _run_bq_with_fallback(meals_query_primary, meals_query_fallback, params)
+        results = _run_bq_with_fallback(meals_query, None, params)
 
         meals_by_date: Dict[str, List[Dict[str, Any]]] = {}
         daily_calories: Dict[str, float] = {}
@@ -319,8 +307,7 @@ async def get_dashboard_summary(
             for row in steps_rows
         }
 
-        # 食事（スキーマ差異に対応したフェイルオーバー）
-        meals_query_primary = f"""
+        meals_query = f"""
         SELECT
             when_date,
             image_base64,
@@ -330,17 +317,7 @@ async def get_dashboard_summary(
           AND when_date BETWEEN @start_date AND @end_date
         ORDER BY when_date DESC, `when` DESC
         """
-        meals_query_fallback = f"""
-        SELECT
-            when_date,
-            TO_BASE64(image_blob) AS image_base64,
-            kcal
-        FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS_DASHBOARD}`
-        WHERE user_id = @user_id
-          AND when_date BETWEEN @start_date AND @end_date
-        ORDER BY when_date DESC, `when` DESC
-        """
-        meals_rows = _run_bq_with_fallback(meals_query_primary, meals_query_fallback, params_common)
+        meals_rows = _run_bq_with_fallback(meals_query, None, params_common)
 
         meals_by_date: Dict[str, List[Dict[str, Any]]] = {}
         for row in meals_rows:

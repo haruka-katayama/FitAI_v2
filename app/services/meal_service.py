@@ -20,7 +20,7 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
         return result
 
     table_id = f"{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}"
-    query_primary = f"""
+    query = f"""
         SELECT
             `when`,
             when_date,
@@ -28,19 +28,6 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
             kcal,
             source,
             image_base64
-        FROM `{table_id}`
-        WHERE user_id = @user_id
-          AND when_date BETWEEN @start_date AND @end_date
-        ORDER BY `when`
-    """
-    query_fallback = f"""
-        SELECT
-            `when`,
-            when_date,
-            text,
-            kcal,
-            source,
-            TO_BASE64(image_blob) AS image_base64
         FROM `{table_id}`
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
@@ -55,13 +42,7 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
     )
 
     try:
-        query = query_primary
-        rows_iter = bq_client.query(query_primary, job_config=job_config)
-    except Exception:
-        query = query_fallback
-        rows_iter = bq_client.query(query_fallback, job_config=job_config)
-
-    try:
+        rows_iter = bq_client.query(query, job_config=job_config)
         for row in rows_iter:
             # when_date があれば isoformat、無ければ when から "YYYY-MM-DD" を生成
             key = (
