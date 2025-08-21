@@ -6,6 +6,7 @@ class Settings:
     BQ_PROJECT_ID: str = os.getenv("BQ_PROJECT_ID", os.getenv("GOOGLE_CLOUD_PROJECT", ""))
     BQ_DATASET: str = os.getenv("BQ_DATASET", "health_raw")
     BQ_TABLE_MEALS: str = os.getenv("BQ_TABLE_MEALS", "meals_updated")
+    BQ_TABLE_MEALS_DASHBOARD: str = os.getenv("BQ_TABLE_MEALS_DASHBOARD", "meals")
     BQ_TABLE_FITBIT: str = os.getenv("BQ_TABLE_FITBIT", "fitbit_daily")
     BQ_TABLE_MONTHLY: str = os.getenv("BQ_TABLE_MONTHLY", "monthly_reports")
     BQ_TABLE_PROFILES: str = os.getenv("BQ_TABLE_PROFILES", "profiles")
