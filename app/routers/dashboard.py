@@ -77,8 +77,12 @@ async def get_meals_dashboard_data(
     
     try:
         # 食事データクエリ
+        # 画像はBase64文字列として保存されているため、そのまま取得する
         meals_query = f"""
-        SELECT when_date, image_base64, kcal
+        SELECT
+            when_date,
+            image_base64,
+            kcal
         FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}`
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
@@ -323,6 +327,7 @@ async def get_dashboard_summary(
         }
 
         # 食事データの取得
+        # 画像はBase64文字列として格納されているのでそのまま返す
         meals_query = f"""
         SELECT
             when_date,
