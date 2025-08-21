@@ -75,7 +75,6 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
                     "kcal": row.kcal,
                     "when": row.when.isoformat() if getattr(row, "when", None) else None,
                     "source": row.source,
-                    "image_base64": getattr(row, "image_base64", None),
                 }
             )
     except Exception as e:

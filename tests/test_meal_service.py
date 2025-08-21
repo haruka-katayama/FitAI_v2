@@ -46,7 +46,6 @@ def test_meals_last_n_days_returns_meals(monkeypatch):
                 "kcal": 600,
                 "when": "2024-01-02T12:00:00+00:00",
                 "source": "manual",
-                "image_base64": "abc",
             }
         ]
     }
@@ -86,4 +85,13 @@ def test_meals_last_n_days_falls_back_to_blob(monkeypatch):
     assert len(queries) == 2
     assert "image_base64" in queries[0]
     assert "TO_BASE64(image_blob)" in queries[1]
-    assert result["2024-01-02"][0]["image_base64"] == "abc"
+    assert result == {
+        "2024-01-02": [
+            {
+                "text": "lunch",
+                "kcal": 600,
+                "when": "2024-01-02T12:00:00+00:00",
+                "source": "manual",
+            }
+        ]
+    }
