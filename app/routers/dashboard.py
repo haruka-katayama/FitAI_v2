@@ -2,7 +2,6 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
-from google.api_core.exceptions import BadRequest
 from google.cloud import bigquery
 from app.database.bigquery import bq_client
 from app.config import settings
@@ -10,38 +9,9 @@ from app.config import settings
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
-def _run_bq_with_fallback(
-    primary_sql: str,
-    fallback_sql: Optional[str],
-    params: List[bigquery.ScalarQueryParameter],
-):
-    """
-    BigQueryを実行。primary_sql が列不存在などで失敗したら fallback_sql を試す。
-    fallback_sql が None の場合は例外をそのまま投げる。
-    """
+def _run_bq(sql: str, params: List[bigquery.ScalarQueryParameter]):
     job_config = bigquery.QueryJobConfig(query_parameters=params)
-    try:
-        return list(bq_client.query(primary_sql, job_config=job_config).result())
-
-    except BadRequest as e:
-        # BadRequest では e.errors から詳細メッセージを抽出してスキーマ差異のみフォールバック
-        messages = " ".join(err.get("message", "").lower() for err in getattr(e, "errors", []) or [])
-        if fallback_sql and (
-            "unrecognized name" in messages or "no such field" in messages
-        ):
-            job_config_fb = bigquery.QueryJobConfig(query_parameters=params)
-            return list(bq_client.query(fallback_sql, job_config=job_config_fb).result())
-        raise
-
-    except Exception as e:
-        # その他の例外は文字列メッセージで簡易判定してスキーマ差異のみフォールバック
-        message = str(e).lower()
-        if fallback_sql and (
-            "unrecognized name" in message or "no such field" in message
-        ):
-            job_config_fb = bigquery.QueryJobConfig(query_parameters=params)
-            return list(bq_client.query(fallback_sql, job_config=job_config_fb).result())
-        raise
+    return list(bq_client.query(sql, job_config=job_config).result())
 
 
 @router.get("/fitbit")
@@ -74,7 +44,7 @@ async def get_fitbit_dashboard_data(
             bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
         ]
 
-        rows = _run_bq_with_fallback(fitbit_query, None, params)
+        rows = _run_bq(fitbit_query, params)
 
         data = {"dates": [], "steps_total": [], "calories_total": [], "sleep_data": [], "spo2_data": []}
         for row in rows:
@@ -101,8 +71,7 @@ async def get_meals_dashboard_data(
         return JSONResponse({"ok": False, "error": "BigQuery not configured"}, status_code=500)
 
     try:
-        # 1本目: 画像が既に Base64 文字列で保存されている想定（image_base64 カラムあり）
-        meals_query_primary = f"""
+        meals_query = f"""
         SELECT
             when_date,
             image_base64,
@@ -110,18 +79,7 @@ async def get_meals_dashboard_data(
         FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS_DASHBOARD}`
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
-        ORDER BY when_date DESC, `when` DESC
-        """
-        # 2本目: 画像が BLOB で保存されている想定（image_blob を Base64 化して返却）
-        meals_query_fallback = f"""
-        SELECT
-            when_date,
-            image_base64,
-            kcal
-        FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS_DASHBOARD}`
-        WHERE user_id = @user_id
-          AND when_date BETWEEN @start_date AND @end_date
-        ORDER BY when_date DESC, `when` DESC
+        ORDER BY when_date DESC
         """
 
         params = [
@@ -130,7 +88,7 @@ async def get_meals_dashboard_data(
             bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
         ]
 
-        results = _run_bq_with_fallback(meals_query_primary, meals_query_fallback, params)
+        results = _run_bq(meals_query, params)
 
         meals_by_date: Dict[str, List[Dict[str, Any]]] = {}
         daily_calories: Dict[str, float] = {}
@@ -215,7 +173,7 @@ async def get_weight_dashboard_data(
             bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
         ]
 
-        results = _run_bq_with_fallback(weight_query, None, params)
+        results = _run_bq(weight_query, params)
 
         dates: List[str] = []
         weights: List[Optional[float]] = []
@@ -262,7 +220,7 @@ async def get_dashboard_summary(
             bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
             bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
         ]
-        analysis_rows = _run_bq_with_fallback(analysis_query, None, params_common)
+        analysis_rows = _run_bq(analysis_query, params_common)
 
         analysis_by_date = {
             row.date.strftime("%Y-%m-%d"): {
@@ -292,7 +250,7 @@ async def get_dashboard_summary(
         WHERE rn = 1
         ORDER BY date ASC
         """
-        weight_rows = _run_bq_with_fallback(weight_query, None, params_common)
+        weight_rows = _run_bq(weight_query, params_common)
 
         weight_by_date = {
             row.date.strftime("%Y-%m-%d"): float(row.weight_kg) if row.weight_kg is not None else None
@@ -313,14 +271,13 @@ async def get_dashboard_summary(
           AND date BETWEEN @start_date AND @end_date
         ORDER BY date ASC
         """
-        steps_rows = _run_bq_with_fallback(steps_query, None, params_common)
+        steps_rows = _run_bq(steps_query, params_common)
         steps_by_date = {
             row.date.strftime("%Y-%m-%d"): int(row.steps_total) if row.steps_total is not None else 0
             for row in steps_rows
         }
 
-        # 食事（スキーマ差異に対応したフェイルオーバー）
-        meals_query_primary = f"""
+        meals_query = f"""
         SELECT
             when_date,
             image_base64,
@@ -328,19 +285,9 @@ async def get_dashboard_summary(
         FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS_DASHBOARD}`
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
-        ORDER BY when_date DESC, `when` DESC
+        ORDER BY when_date DESC
         """
-        meals_query_fallback = f"""
-        SELECT
-            when_date,
-            TO_BASE64(image_blob) AS image_base64,
-            kcal
-        FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS_DASHBOARD}`
-        WHERE user_id = @user_id
-          AND when_date BETWEEN @start_date AND @end_date
-        ORDER BY when_date DESC, `when` DESC
-        """
-        meals_rows = _run_bq_with_fallback(meals_query_primary, meals_query_fallback, params_common)
+        meals_rows = _run_bq(meals_query, params_common)
 
         meals_by_date: Dict[str, List[Dict[str, Any]]] = {}
         for row in meals_rows:
