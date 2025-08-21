@@ -66,3 +66,41 @@ def test_meal_image_includes_memo(monkeypatch):
     assert called["memo"] == "ご飯大盛り"
     assert called["notes"] == "ご飯大盛り"
 
+
+def test_meal_image_saves_base64(monkeypatch):
+    """有効な画像をアップロードすると圧縮データが保存される"""
+    called = {}
+
+    async def fake_vision(data, mime, memo=None):
+        return "ok"
+
+    def fake_save(payload, user_id):
+        called["image_base64"] = payload.get("image_base64")
+        return {"ok": True, "dedup_key": "x", "firestore": {"skipped": False}}
+
+    monkeypatch.setattr(
+        "app.routers.ui.vision_extract_meal_bytes", fake_vision
+    )
+    monkeypatch.setattr(
+        "app.routers.ui.save_meal_to_stores", fake_save
+    )
+
+    import app.routers.ui as ui
+    monkeypatch.setattr(ui.settings, "OPENAI_API_KEY", "test", raising=False)
+
+    import base64
+
+    img_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQImWNgYGD4DwABBAEAEPyWpQAAAABJRU5ErkJggg=="
+    )
+
+    resp = client.post(
+        "/ui/meal_image",
+        data={"when": "2024-01-01T12:00:00"},
+        files={"file": ("img.png", img_bytes, "image/png")},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+    assert called["image_base64"]
+
