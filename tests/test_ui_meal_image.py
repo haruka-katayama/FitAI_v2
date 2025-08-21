@@ -34,7 +34,7 @@ def test_meal_image_preview_empty_file_returns_400():
 
 
 def test_meal_image_includes_memo(monkeypatch):
-    """メモ付きでアップロードした場合、メモがGPTプロンプトと保存データに渡る"""
+    """メモ付きでアップロードした場合、メモがGPTプロンプトに渡るが保存されない"""
     called = {}
 
     async def fake_vision(data, mime, memo=None):
@@ -64,7 +64,7 @@ def test_meal_image_includes_memo(monkeypatch):
     assert resp.status_code == 200
     assert resp.json()["ok"] is True
     assert called["memo"] == "ご飯大盛り"
-    assert called["notes"] == "ご飯大盛り"
+    assert called["notes"] is None
 
 
 def test_meal_image_saves_base64(monkeypatch):
