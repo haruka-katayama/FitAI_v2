@@ -17,7 +17,7 @@ class DummyQueryJob:
 
 
 def test_run_bq_with_fallback_schema_error(monkeypatch):
-    """Fallback should trigger when primary raises column related error."""
+    """primary が列不存在系で失敗したら fallback が実行されること"""
 
     queries = []
 
@@ -29,10 +29,12 @@ def test_run_bq_with_fallback_schema_error(monkeypatch):
             queries.append(sql)
             if self.calls == 0:
                 self.calls += 1
+                # 列不存在エラー（フォールバック対象）
                 raise BadRequest(
                     "Unrecognized name: image_base64",
                     errors=[{"message": "Unrecognized name: image_base64"}],
                 )
+            # フォールバック成功時のダミー行
             return DummyQueryJob(rows=[SimpleNamespace(dummy=1)])
 
     dummy_client = DummyClient()
@@ -45,13 +47,14 @@ def test_run_bq_with_fallback_schema_error(monkeypatch):
 
 
 def test_run_bq_with_fallback_other_error(monkeypatch):
-    """Non schema errors should propagate without using fallback."""
+    """スキーマ差異以外のエラーはフォールバックせず例外が伝播すること"""
 
     queries = []
 
     class DummyClient:
         def query(self, sql, job_config=None):
             queries.append(sql)
+            # スキーマ差異ではない BadRequest（Syntax error）
             raise BadRequest(
                 "Syntax error",
                 errors=[{"message": "Syntax error"}],
@@ -65,4 +68,3 @@ def test_run_bq_with_fallback_other_error(monkeypatch):
 
     assert "Syntax error" in str(exc.value)
     assert queries == ["primary_sql"]
-
