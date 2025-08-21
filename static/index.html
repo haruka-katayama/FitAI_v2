@@ -2117,36 +2117,23 @@ try {
               theadRow.innerHTML = '';
 
               const dates = Object.keys(mealsByDate || {}).sort().reverse();
-              const columnsSet = new Set();
-
-              for (const meals of Object.values(mealsByDate || {})) {
-                for (const meal of meals) {
-                  Object.keys(meal).forEach(key => {
-                    if (key !== 'source') columnsSet.add(key);
-                  });
-                }
-              }
-
-              const columns = Array.from(columnsSet).sort();
-
-              theadRow.innerHTML = ['<th>日付</th>', ...columns.map(c => `<th>${c}</th>`)].join('');
+              theadRow.innerHTML = '<th>日付</th><th>画像</th><th>摂取カロリー</th>';
 
               for (const date of dates) {
                 const meals = mealsByDate[date] || [];
                 if (meals.length === 0) {
                   const tr = document.createElement('tr');
-                  const colspan = Math.max(columns.length, 1);
-                  tr.innerHTML = `<td>${date}</td><td colspan="${colspan}">--</td>`;
+                  tr.innerHTML = `<td>${date}</td><td colspan="2">--</td>`;
                   tbody.appendChild(tr);
                   continue;
                 }
                 for (const meal of meals) {
                   const tr = document.createElement('tr');
-                  const cells = columns.map(col => {
-                    const val = meal[col] !== undefined && meal[col] !== null ? meal[col] : '';
-                    return `<td>${val}</td>`;
-                  }).join('');
-                  tr.innerHTML = `<td>${date}</td>${cells}`;
+                  const imgHtml = meal.image_base64
+                    ? `<img src="data:image/jpeg;base64,${meal.image_base64}" style="max-width:100px;height:auto;" />`
+                    : '';
+                  const kcal = meal.kcal !== undefined && meal.kcal !== null ? meal.kcal : '';
+                  tr.innerHTML = `<td>${date}</td><td>${imgHtml}</td><td>${kcal}</td>`;
                   tbody.appendChild(tr);
                 }
               }

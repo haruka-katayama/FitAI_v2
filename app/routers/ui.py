@@ -16,6 +16,12 @@ from google.cloud import bigquery
 import hashlib
 import uuid
 import logging
+import base64
+from io import BytesIO
+try:
+    from PIL import Image  # type: ignore
+except Exception:  # Pillow optional
+    Image = None  # fallback when Pillow is not installed
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 logger = logging.getLogger(__name__)
@@ -75,6 +81,21 @@ async def ui_meal_image(
     # フルSHA-256（短縮しない）で画像ダイジェスト
     image_digest = hashlib.sha256(data).hexdigest()
 
+    # 画像圧縮とBase64変換（ダッシュボード表示用）
+    image_base64 = None
+    try:
+        if Image is not None:
+            img = Image.open(BytesIO(data))
+            img.thumbnail((512, 512))
+            buf = BytesIO()
+            img.save(buf, format="JPEG", quality=75)
+            image_bytes = buf.getvalue()
+        else:
+            image_bytes = data  # no compression if Pillow not available
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+    except Exception as e:
+        logger.warning(f"[MEAL_IMAGE] image compression failed: {e}")
+
     try:
         logger.info(f"[MEAL_IMAGE] calling OpenAI, request_id={request_id}")
         text = await vision_extract_meal_bytes(data, mime, memo)
@@ -101,6 +122,7 @@ async def ui_meal_image(
         "file_name": file.filename,
         "mime": mime,
         "image_digest": image_digest,   # ←一本化（短縮版は使わない）
+        "image_base64": image_base64,
         "meal_kind": "other",
         "notes": memo or "",
         "user_id": user_id,             # ← payloadにも入れておく
