@@ -2,6 +2,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
+from google.api_core.exceptions import BadRequest
 from google.cloud import bigquery
 from app.database.bigquery import bq_client
 from app.config import settings
@@ -21,15 +22,25 @@ def _run_bq_with_fallback(
     job_config = bigquery.QueryJobConfig(query_parameters=params)
     try:
         return list(bq_client.query(primary_sql, job_config=job_config).result())
+
+    except BadRequest as e:
+        # BadRequest では e.errors から詳細メッセージを抽出してスキーマ差異のみフォールバック
+        messages = " ".join(err.get("message", "").lower() for err in getattr(e, "errors", []) or [])
+        if fallback_sql and (
+            "unrecognized name" in messages or "no such field" in messages
+        ):
+            job_config_fb = bigquery.QueryJobConfig(query_parameters=params)
+            return list(bq_client.query(fallback_sql, job_config=job_config_fb).result())
+        raise
+
     except Exception as e:
-        # フォールバックは列不存在などスキーマ差異が原因のエラー時のみ実行
+        # その他の例外は文字列メッセージで簡易判定してスキーマ差異のみフォールバック
         message = str(e).lower()
         if fallback_sql and (
             "unrecognized name" in message or "no such field" in message
         ):
             job_config_fb = bigquery.QueryJobConfig(query_parameters=params)
             return list(bq_client.query(fallback_sql, job_config=job_config_fb).result())
-        # それ以外の例外はそのまま呼び出し元へ
         raise
 
 
@@ -67,7 +78,6 @@ async def get_fitbit_dashboard_data(
 
         data = {"dates": [], "steps_total": [], "calories_total": [], "sleep_data": [], "spo2_data": []}
         for row in rows:
-            # BigQuery DATE -> datetime.date
             data["dates"].append(row.date.strftime("%Y-%m-%d"))
             data["steps_total"].append(int(row.steps_total) if row.steps_total is not None else 0)
             data["calories_total"].append(int(row.calories_total) if row.calories_total is not None else 0)
