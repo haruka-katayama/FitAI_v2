@@ -51,28 +51,13 @@ def test_meals_last_n_days_returns_meals(monkeypatch):
     }
 
 
-def test_meals_last_n_days_falls_back_to_blob(monkeypatch):
-    sample_row = SimpleNamespace(
-        when=datetime(2024, 1, 2, 12, 0, tzinfo=timezone.utc),
-        when_date=date(2024, 1, 2),
-        text="lunch",
-        kcal=600,
-        source="manual",
-        image_base64="abc",
-    )
-
+def test_meals_last_n_days_query_error_returns_empty(monkeypatch):
     queries = []
 
     class DummyClient:
-        def __init__(self):
-            self.calls = 0
-
         def query(self, query, job_config=None):
             queries.append(query)
-            if self.calls == 0:
-                self.calls += 1
-                raise Exception("column image_base64 not found")
-            return [sample_row]
+            raise Exception("column image_base64 not found")
 
     dummy_client = DummyClient()
     monkeypatch.setattr(meal_service, "bq_client", dummy_client)
@@ -82,16 +67,5 @@ def test_meals_last_n_days_falls_back_to_blob(monkeypatch):
 
     result = asyncio.run(meal_service.meals_last_n_days(1, "demo"))
 
-    assert len(queries) == 2
-    assert "image_base64" in queries[0]
-    assert "TO_BASE64(image_blob)" in queries[1]
-    assert result == {
-        "2024-01-02": [
-            {
-                "text": "lunch",
-                "kcal": 600,
-                "when": "2024-01-02T12:00:00+00:00",
-                "source": "manual",
-            }
-        ]
-    }
+    assert len(queries) == 1
+    assert result == {}
