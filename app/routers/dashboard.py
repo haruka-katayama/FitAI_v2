@@ -110,7 +110,6 @@ async def get_meals_dashboard_data(
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
         ORDER BY when_date DESC, `when` DESC
-        """
 
         params = [
             bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
