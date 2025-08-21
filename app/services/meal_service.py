@@ -20,7 +20,20 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
         return result
 
     table_id = f"{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}"
-    query = f"""
+    query_primary = f"""
+        SELECT
+            `when`,
+            when_date,
+            text,
+            kcal,
+            source,
+            image_base64
+        FROM `{table_id}`
+        WHERE user_id = @user_id
+          AND when_date BETWEEN @start_date AND @end_date
+        ORDER BY `when`
+    """
+    query_fallback = f"""
         SELECT
             `when`,
             when_date,
@@ -42,8 +55,14 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
     )
 
     try:
-        rows = bq_client.query(query, job_config=job_config)
-        for row in rows:
+        query = query_primary
+        rows_iter = bq_client.query(query_primary, job_config=job_config)
+    except Exception:
+        query = query_fallback
+        rows_iter = bq_client.query(query_fallback, job_config=job_config)
+
+    try:
+        for row in rows_iter:
             # when_date があれば isoformat、無ければ when から "YYYY-MM-DD" を生成
             key = (
                 row.when_date.isoformat()
@@ -60,7 +79,9 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
                 }
             )
     except Exception as e:
-        print(f"[ERROR] BigQuery meals fetch failed: {type(e).__name__}: {e}. query={query}")
+        print(
+            f"[ERROR] BigQuery meals fetch failed: {type(e).__name__}: {e}. query={query}"
+        )
 
     return result
 
