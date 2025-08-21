@@ -727,6 +727,28 @@
             overflow-x: auto;
         }
 
+        /* 食事一覧アコーディオン */
+        #meal-accordion {
+            margin-top: 20px;
+        }
+        #meal-accordion summary {
+            font-size: 1.17em;
+            font-weight: bold;
+            cursor: pointer;
+            list-style: none;
+        }
+        #meal-accordion summary::-webkit-details-marker {
+            display: none;
+        }
+        #meal-accordion summary::after {
+            content: '▶';
+            float: right;
+            transition: transform 0.2s;
+        }
+        #meal-accordion[open] summary::after {
+            transform: rotate(90deg);
+        }
+
         #meals-table {
             width: 100%;
             border-collapse: collapse;
@@ -1064,13 +1086,15 @@
                     </div>
                 </div>
 
-                <div class="meal-table-container">
-                    <h3>🍽️ 食事一覧</h3>
-                    <table id="meals-table">
-                        <thead><tr></tr></thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
+                <details id="meal-accordion" open>
+                    <summary>🍽️ 食事一覧</summary>
+                    <div class="meal-table-container">
+                        <table id="meals-table">
+                            <thead><tr></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </details>
 
                 <div id="dashboard-status"></div>
             </div>
