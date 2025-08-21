@@ -1,25 +1,45 @@
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from datetime import datetime, timedelta
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from google.cloud import bigquery
 from app.database.bigquery import bq_client
 from app.config import settings
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
+
+def _run_bq_with_fallback(
+    primary_sql: str,
+    fallback_sql: Optional[str],
+    params: List[bigquery.ScalarQueryParameter],
+):
+    """
+    BigQueryを実行。primary_sql が列不存在などで失敗したら fallback_sql を試す。
+    fallback_sql が None の場合は例外をそのまま投げる。
+    """
+    job_config = bigquery.QueryJobConfig(query_parameters=params)
+    try:
+        return list(bq_client.query(primary_sql, job_config=job_config).result())
+    except Exception as e:
+        if not fallback_sql:
+            raise
+        # 列不存在などスキーマ差異想定の例外でフォールバック（他の致命的エラーも含めてリトライ）
+        job_config_fb = bigquery.QueryJobConfig(query_parameters=params)
+        return list(bq_client.query(fallback_sql, job_config=job_config_fb).result())
+
+
 @router.get("/fitbit")
 async def get_fitbit_dashboard_data(
     start_date: str = Query(..., description="開始日 (YYYY-MM-DD)"),
     end_date: str = Query(..., description="終了日 (YYYY-MM-DD)"),
-    user_id: str = Query("demo", description="ユーザーID")
+    user_id: str = Query("demo", description="ユーザーID"),
 ):
     """Fitbitダッシュボード用データを取得"""
     if not bq_client:
         return JSONResponse({"ok": False, "error": "BigQuery not configured"}, status_code=500)
-    
+
     try:
-        # Fitbitデータクエリ
         fitbit_query = f"""
         SELECT 
             date,
@@ -32,53 +52,43 @@ async def get_fitbit_dashboard_data(
           AND date BETWEEN @start_date AND @end_date
         ORDER BY date ASC
         """
-        
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
-                bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
-                bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
-            ]
-        )
-        
-        query_job = bq_client.query(fitbit_query, job_config=job_config)
-        results = list(query_job.result())
-        
-        # データを整形
-        data = {
-            "dates": [],
-            "steps_total": [],
-            "calories_total": [],
-            "sleep_data": [],
-            "spo2_data": []
-        }
-        
-        for row in results:
+
+        params = [
+            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
+            bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
+        ]
+
+        rows = _run_bq_with_fallback(fitbit_query, None, params)
+
+        data = {"dates": [], "steps_total": [], "calories_total": [], "sleep_data": [], "spo2_data": []}
+        for row in rows:
+            # BigQuery DATE -> datetime.date
             data["dates"].append(row.date.strftime("%Y-%m-%d"))
-            data["steps_total"].append(int(row.steps_total) if row.steps_total else 0)
-            data["calories_total"].append(int(row.calories_total) if row.calories_total else 0)
+            data["steps_total"].append(int(row.steps_total) if row.steps_total is not None else 0)
+            data["calories_total"].append(int(row.calories_total) if row.calories_total is not None else 0)
             data["sleep_data"].append(row.sleep_line or "データなし")
             data["spo2_data"].append(row.spo2_line or "データなし")
-        
+
         return {"ok": True, "data": data}
-        
+
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
 
 @router.get("/meals")
 async def get_meals_dashboard_data(
     start_date: str = Query(..., description="開始日 (YYYY-MM-DD)"),
     end_date: str = Query(..., description="終了日 (YYYY-MM-DD)"),
-    user_id: str = Query("demo", description="ユーザーID")
+    user_id: str = Query("demo", description="ユーザーID"),
 ):
     """食事ダッシュボード用データを取得"""
     if not bq_client:
         return JSONResponse({"ok": False, "error": "BigQuery not configured"}, status_code=500)
-    
+
     try:
-        # 食事データクエリ
-        # 画像はBase64文字列として保存されているため、そのまま取得する
-        meals_query = f"""
+        # 1本目: 画像が既に Base64 文字列で保存されている想定（image_base64 カラムあり）
+        meals_query_primary = f"""
         SELECT
             when_date,
             image_base64,
@@ -88,26 +98,32 @@ async def get_meals_dashboard_data(
           AND when_date BETWEEN @start_date AND @end_date
         ORDER BY when_date DESC, `when` DESC
         """
-        
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
-                bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
-                bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
-            ]
-        )
-        
-        query_job = bq_client.query(meals_query, job_config=job_config)
-        results = list(query_job.result())
-        
-        # 日付別にグループ化
+        # 2本目: 画像が BLOB で保存されている想定（image_blob を Base64 化して返却）
+        meals_query_fallback = f"""
+        SELECT
+            when_date,
+            TO_BASE64(image_blob) AS image_base64,
+            kcal
+        FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}`
+        WHERE user_id = @user_id
+          AND when_date BETWEEN @start_date AND @end_date
+        ORDER BY when_date DESC, `when` DESC
+        """
+
+        params = [
+            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
+            bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
+        ]
+
+        results = _run_bq_with_fallback(meals_query_primary, meals_query_fallback, params)
+
         meals_by_date: Dict[str, List[Dict[str, Any]]] = {}
         daily_calories: Dict[str, float] = {}
 
         for row in results:
-            date_obj = row.when_date
+            date_obj = row.when_date  # DATE
             date_str = date_obj.strftime("%Y-%m-%d")
-
             meal_data = {
                 "image_base64": getattr(row, "image_base64", None),
                 "kcal": float(row.kcal) if row.kcal is not None else None,
@@ -115,51 +131,51 @@ async def get_meals_dashboard_data(
 
             if date_str not in meals_by_date:
                 meals_by_date[date_str] = []
-                daily_calories[date_str] = 0
+                daily_calories[date_str] = 0.0
 
             meals_by_date[date_str].append(meal_data)
 
-            if meal_data["kcal"]:
-                daily_calories[date_str] += float(meal_data["kcal"])
-        
-        # 期間内の全日付でカロリーデータを準備
+            # 0kcal も正しく集計（None のみ無視）
+            if meal_data["kcal"] is not None:
+                daily_calories[date_str] += meal_data["kcal"]
+
+        # 期間の全日付を網羅
         start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
         end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
-        
-        dates = []
-        take_in_calories = []
-        
-        current_date = start_dt
-        while current_date <= end_dt:
-            date_str = current_date.strftime("%Y-%m-%d")
-            dates.append(date_str)
-            take_in_calories.append(daily_calories.get(date_str, 0))
-            current_date += timedelta(days=1)
-        
+
+        dates: List[str] = []
+        take_in_calories: List[float] = []
+        cur = start_dt
+        while cur <= end_dt:
+            ds = cur.strftime("%Y-%m-%d")
+            dates.append(ds)
+            take_in_calories.append(daily_calories.get(ds, 0.0))
+            cur += timedelta(days=1)
+
         return {
             "ok": True,
             "data": {
                 "dates": dates,
                 "take_in_calories": take_in_calories,
-                "meals_by_date": meals_by_date
-            }
+                "meals_by_date": meals_by_date,
+            },
         }
-        
+
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
 
 @router.get("/weight")
 async def get_weight_dashboard_data(
     start_date: str = Query(..., description="開始日 (YYYY-MM-DD)"),
     end_date: str = Query(..., description="終了日 (YYYY-MM-DD)"),
-    user_id: str = Query("demo", description="ユーザーID")
+    user_id: str = Query("demo", description="ユーザーID"),
 ):
     """体重ダッシュボード用データを取得"""
     if not bq_client:
         return JSONResponse({"ok": False, "error": "BigQuery not configured"}, status_code=500)
-    
+
     try:
-        # Health Planetからの体重・体脂肪率データ - 最新の測定値のみ取得
         weight_query = f"""
         SELECT
             date,
@@ -179,59 +195,42 @@ async def get_weight_dashboard_data(
         ORDER BY date ASC
         """
 
-        job_config = bigquery.QueryJobConfig(
-            query_parameters=[
-                bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
-                bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
-                bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
-            ]
-        )
+        params = [
+            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
+            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
+            bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
+        ]
 
-        query_job = bq_client.query(weight_query, job_config=job_config)
-        results = list(query_job.result())
+        results = _run_bq_with_fallback(weight_query, None, params)
 
-        # データを整形
         dates: List[str] = []
-        weights: List[float] = []
-        fats: List[float] = []
+        weights: List[Optional[float]] = []
+        fats: List[Optional[float]] = []
 
         for row in results:
             dates.append(row.date.strftime("%Y-%m-%d"))
             weights.append(float(row.weight_kg) if row.weight_kg is not None else None)
             fats.append(float(row.fat_percentage) if row.fat_percentage is not None else None)
 
-        return {
-            "ok": True,
-            "data": {
-                "dates": dates,
-                "weight_kg": weights,
-                "fat_percentage": fats,
-            }
-        }
+        return {"ok": True, "data": {"dates": dates, "weight_kg": weights, "fat_percentage": fats}}
 
     except Exception:
-        # Health Planetデータがない場合は空のデータを返す
-        return {
-            "ok": True,
-            "data": {
-                "dates": [],
-                "weight_kg": [],
-                "fat_percentage": [],
-            },
-        }
+        # データが無い場合は空を返す
+        return {"ok": True, "data": {"dates": [], "weight_kg": [], "fat_percentage": []}}
+
 
 @router.get("/summary")
 async def get_dashboard_summary(
     start_date: str = Query(..., description="開始日 (YYYY-MM-DD)"),
     end_date: str = Query(..., description="終了日 (YYYY-MM-DD)"),
-    user_id: str = Query("demo", description="ユーザーID")
+    user_id: str = Query("demo", description="ユーザーID"),
 ):
-    """BigQuery からダッシュボード用データを取得"""
+    """BigQuery からダッシュボード用サマリデータを取得"""
     if not bq_client:
         return JSONResponse({"ok": False, "error": "BigQuery not configured"}, status_code=500)
 
     try:
-        # カロリー収支と体重変化の取得 (重複データを集約)
+        # カロリー収支 & 体重変化（重複を日付で集約）
         analysis_query = f"""
         SELECT
             date,
@@ -244,26 +243,23 @@ async def get_dashboard_summary(
         GROUP BY date
         ORDER BY date ASC
         """
-
-        analysis_config = bigquery.QueryJobConfig(query_parameters=[
+        params_common = [
             bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
             bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
             bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
-        ])
-
-        analysis_job = bq_client.query(analysis_query, job_config=analysis_config)
-        analysis_rows = list(analysis_job.result())
+        ]
+        analysis_rows = _run_bq_with_fallback(analysis_query, None, params_common)
 
         analysis_by_date = {
             row.date.strftime("%Y-%m-%d"): {
-                "take_in_calories": float(row.take_in_calories) if row.take_in_calories is not None else 0,
-                "consumption_calories": float(row.consumption_calories) if row.consumption_calories is not None else 0,
-                "weight_change_kg": float(row.weight_change_kg) if row.weight_change_kg is not None else 0,
+                "take_in_calories": float(row.take_in_calories) if row.take_in_calories is not None else 0.0,
+                "consumption_calories": float(row.consumption_calories) if row.consumption_calories is not None else 0.0,
+                "weight_change_kg": float(row.weight_change_kg) if row.weight_change_kg is not None else 0.0,
             }
             for row in analysis_rows
         }
 
-        # 体重・体脂肪率データの取得 (1日1つの最新値のみ)
+        # 体重・体脂肪（1日1件、最新）
         weight_query = f"""
         SELECT
             date,
@@ -282,15 +278,7 @@ async def get_dashboard_summary(
         WHERE rn = 1
         ORDER BY date ASC
         """
-
-        weight_config = bigquery.QueryJobConfig(query_parameters=[
-            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
-            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
-            bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
-        ])
-
-        weight_job = bq_client.query(weight_query, job_config=weight_config)
-        weight_rows = list(weight_job.result())
+        weight_rows = _run_bq_with_fallback(weight_query, None, params_common)
 
         weight_by_date = {
             row.date.strftime("%Y-%m-%d"): float(row.weight_kg) if row.weight_kg is not None else None
@@ -301,7 +289,7 @@ async def get_dashboard_summary(
             for row in weight_rows
         }
 
-        # Fitbitの歩数データの取得
+        # 歩数
         steps_query = f"""
         SELECT
             date,
@@ -311,24 +299,14 @@ async def get_dashboard_summary(
           AND date BETWEEN @start_date AND @end_date
         ORDER BY date ASC
         """
-
-        steps_config = bigquery.QueryJobConfig(query_parameters=[
-            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
-            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
-            bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
-        ])
-
-        steps_job = bq_client.query(steps_query, job_config=steps_config)
-        steps_rows = list(steps_job.result())
-
+        steps_rows = _run_bq_with_fallback(steps_query, None, params_common)
         steps_by_date = {
             row.date.strftime("%Y-%m-%d"): int(row.steps_total) if row.steps_total is not None else 0
             for row in steps_rows
         }
 
-        # 食事データの取得
-        # 画像はBase64文字列として格納されているのでそのまま返す
-        meals_query = f"""
+        # 食事（スキーマ差異に対応したフェイルオーバー）
+        meals_query_primary = f"""
         SELECT
             when_date,
             image_base64,
@@ -338,36 +316,38 @@ async def get_dashboard_summary(
           AND when_date BETWEEN @start_date AND @end_date
         ORDER BY when_date DESC, `when` DESC
         """
-
-        meals_config = bigquery.QueryJobConfig(query_parameters=[
-            bigquery.ScalarQueryParameter("user_id", "STRING", user_id),
-            bigquery.ScalarQueryParameter("start_date", "DATE", start_date),
-            bigquery.ScalarQueryParameter("end_date", "DATE", end_date),
-        ])
-
-        meals_job = bq_client.query(meals_query, job_config=meals_config)
-        meals_rows = list(meals_job.result())
+        meals_query_fallback = f"""
+        SELECT
+            when_date,
+            TO_BASE64(image_blob) AS image_base64,
+            kcal
+        FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}`
+        WHERE user_id = @user_id
+          AND when_date BETWEEN @start_date AND @end_date
+        ORDER BY when_date DESC, `when` DESC
+        """
+        meals_rows = _run_bq_with_fallback(meals_query_primary, meals_query_fallback, params_common)
 
         meals_by_date: Dict[str, List[Dict[str, Any]]] = {}
         for row in meals_rows:
-            date_str = row.when_date.strftime("%Y-%m-%d")
-            if date_str not in meals_by_date:
-                meals_by_date[date_str] = []
-            meals_by_date[date_str].append({
-                "image_base64": getattr(row, "image_base64", None),
-                "kcal": float(row.kcal) if row.kcal is not None else None,
-            })
+            ds = row.when_date.strftime("%Y-%m-%d")
+            meals_by_date.setdefault(ds, []).append(
+                {
+                    "image_base64": getattr(row, "image_base64", None),
+                    "kcal": float(row.kcal) if row.kcal is not None else None,
+                }
+            )
 
-        # 期間内の全日付リストを作成
+        # 期間内の全日付リスト
         start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
         end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
-        all_dates = []
-        current = start_dt
-        while current <= end_dt:
-            all_dates.append(current.strftime("%Y-%m-%d"))
-            current += timedelta(days=1)
+        all_dates: List[str] = []
+        cur = start_dt
+        while cur <= end_dt:
+            all_dates.append(cur.strftime("%Y-%m-%d"))
+            cur += timedelta(days=1)
 
-        # 日付ごとのデータ配列を作成
+        # 日別配列を整形
         take_in = []
         consumption = []
         weight_change = []
@@ -376,12 +356,12 @@ async def get_dashboard_summary(
         steps = []
 
         for d in all_dates:
-            analysis = analysis_by_date.get(d, {})
-            take_in.append(analysis.get("take_in_calories", 0))
-            consumption.append(analysis.get("consumption_calories", 0))
-            weight_change.append(analysis.get("weight_change_kg", 0))
-            weights.append(weight_by_date.get(d, 0))
-            fats.append(fat_by_date.get(d, 0))
+            a = analysis_by_date.get(d, {})
+            take_in.append(a.get("take_in_calories", 0.0))
+            consumption.append(a.get("consumption_calories", 0.0))
+            weight_change.append(a.get("weight_change_kg", 0.0))
+            weights.append(weight_by_date.get(d, None))
+            fats.append(fat_by_date.get(d, None))
             steps.append(steps_by_date.get(d, 0))
 
         return {
