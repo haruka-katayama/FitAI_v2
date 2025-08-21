@@ -24,6 +24,16 @@ def test_meal_image_empty_file_returns_400():
     assert response.json()["error"] == "Empty file"
 
 
+def test_meal_image_too_large_returns_400():
+    big_data = b"0" * (1024 * 1024 + 1)
+    response = client.post(
+        "/ui/meal_image?dry=true",
+        files={"file": ("big.png", big_data, "image/png")},
+    )
+    assert response.status_code == 400
+    assert response.json()["error"] == "File too large"
+
+
 def test_meal_image_preview_empty_file_returns_400():
     response = client.post(
         "/ui/meal_image/preview",
@@ -31,6 +41,16 @@ def test_meal_image_preview_empty_file_returns_400():
     )
     assert response.status_code == 400
     assert response.json()["error"] == "Empty file"
+
+
+def test_meal_image_preview_too_large_returns_400():
+    big_data = b"0" * (1024 * 1024 + 1)
+    response = client.post(
+        "/ui/meal_image/preview",
+        files={"file": ("big.png", big_data, "image/png")},
+    )
+    assert response.status_code == 400
+    assert response.json()["error"] == "File too large"
 
 
 def test_meal_image_includes_memo(monkeypatch):

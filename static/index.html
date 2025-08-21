@@ -1368,8 +1368,19 @@
                     return;
                 }
 
+                // ファイルサイズチェック（1MB = 1,048,576 バイト）
+                const maxSize = 1024 * 1024;
+                if (file.size > maxSize) {
+                    this.showStatus('meal-status', 'ファイルサイズを1MB未満にしてください', 'error');
+                    document.getElementById('file-input').value = '';
+                    document.getElementById('preview-container').style.display = 'none';
+                    document.getElementById('upload-btn').disabled = true;
+                    this.selectedFile = null;
+                    return;
+                }
+
                 this.selectedFile = file;
-                
+
                 // プレビュー表示
                 const reader = new FileReader();
                 reader.onload = (e) => {
