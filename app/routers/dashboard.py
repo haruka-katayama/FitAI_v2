@@ -22,11 +22,15 @@ def _run_bq_with_fallback(
     try:
         return list(bq_client.query(primary_sql, job_config=job_config).result())
     except Exception as e:
-        if not fallback_sql:
-            raise
-        # 列不存在などスキーマ差異想定の例外でフォールバック（他の致命的エラーも含めてリトライ）
-        job_config_fb = bigquery.QueryJobConfig(query_parameters=params)
-        return list(bq_client.query(fallback_sql, job_config=job_config_fb).result())
+        # フォールバックは列不存在などスキーマ差異が原因のエラー時のみ実行
+        message = str(e).lower()
+        if fallback_sql and (
+            "unrecognized name" in message or "no such field" in message
+        ):
+            job_config_fb = bigquery.QueryJobConfig(query_parameters=params)
+            return list(bq_client.query(fallback_sql, job_config=job_config_fb).result())
+        # それ以外の例外はそのまま呼び出し元へ
+        raise
 
 
 @router.get("/fitbit")
