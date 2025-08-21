@@ -2,7 +2,6 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
-import numbers
 from google.cloud import bigquery
 from app.database.bigquery import bq_client
 from app.config import settings
@@ -79,7 +78,7 @@ async def get_meals_dashboard_data(
     try:
         # 食事データクエリ
         meals_query = f"""
-        SELECT * EXCEPT(user_id)
+        SELECT when_date, image_base64, kcal
         FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}`
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
@@ -102,23 +101,13 @@ async def get_meals_dashboard_data(
         daily_calories: Dict[str, float] = {}
 
         for row in results:
-            row_dict = dict(row)
-            date_obj = row_dict.pop("when_date")
+            date_obj = row.when_date
             date_str = date_obj.strftime("%Y-%m-%d")
 
-            # 不要なカラムを削除
-            row_dict.pop("source", None)
-
-            meal_data: Dict[str, Any] = {}
-            for key, value in row_dict.items():
-                if value is None:
-                    meal_data[key] = None
-                elif hasattr(value, "isoformat"):
-                    meal_data[key] = value.isoformat()
-                elif isinstance(value, numbers.Number):
-                    meal_data[key] = float(value)
-                else:
-                    meal_data[key] = value
+            meal_data = {
+                "image_base64": getattr(row, "image_base64", None),
+                "kcal": float(row.kcal) if row.kcal is not None else None,
+            }
 
             if date_str not in meals_by_date:
                 meals_by_date[date_str] = []
@@ -126,9 +115,8 @@ async def get_meals_dashboard_data(
 
             meals_by_date[date_str].append(meal_data)
 
-            kcal_val = meal_data.get("kcal")
-            if kcal_val:
-                daily_calories[date_str] += float(kcal_val)
+            if meal_data["kcal"]:
+                daily_calories[date_str] += float(meal_data["kcal"])
         
         # 期間内の全日付でカロリーデータを準備
         start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -338,9 +326,8 @@ async def get_dashboard_summary(
         meals_query = f"""
         SELECT
             when_date,
-            text,
-            kcal,
-            source
+            image_base64,
+            kcal
         FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS}`
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
@@ -362,9 +349,8 @@ async def get_dashboard_summary(
             if date_str not in meals_by_date:
                 meals_by_date[date_str] = []
             meals_by_date[date_str].append({
-                "text": row.text,
+                "image_base64": getattr(row, "image_base64", None),
                 "kcal": float(row.kcal) if row.kcal is not None else None,
-                "source": row.source,
             })
 
         # 期間内の全日付リストを作成

@@ -26,7 +26,8 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
             when_date,
             text,
             kcal,
-            source
+            source,
+            image_base64
         FROM `{table_id}`
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
@@ -55,6 +56,7 @@ async def meals_last_n_days(n: int = 7, user_id: str = "demo") -> Dict[str, List
                     "kcal": row.kcal,
                     "when": row.when.isoformat() if getattr(row, "when", None) else None,
                     "source": row.source,
+                    "image_base64": getattr(row, "image_base64", None),
                 }
             )
     except Exception as e:
@@ -116,6 +118,7 @@ def save_meal_to_stores(meal_data: Dict[str, Any], user_id: str = "demo") -> Dic
         "mime": meal_data.get("mime"),
         "meal_kind": meal_data.get("meal_kind"),
         "image_digest": meal_data.get("image_digest"),
+        "image_base64": meal_data.get("image_base64"),
         "notes": meal_data.get("notes"),
         "ingested_at": current_time,  # 統一されたタイムスタンプを使用
         "created_at": current_time,   # created_atも同じ値に統一
@@ -218,7 +221,7 @@ def validate_meal_data(meal_data: Dict[str, Any]) -> Dict[str, Any]:
             errors.append("kcal must be a valid number")
 
     # 文字列型のチェック
-    str_fields = ["meal_kind", "image_digest", "notes"]
+    str_fields = ["meal_kind", "image_digest", "notes", "image_base64"]
     for field in str_fields:
         if meal_data.get(field) is not None and not isinstance(meal_data.get(field), str):
             errors.append(f"{field} must be a string")
