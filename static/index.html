@@ -2116,16 +2116,18 @@ try {
               tbody.innerHTML = '';
               theadRow.innerHTML = '';
 
-              const dates = Object.keys(mealsByDate || {}).sort();
-              let columns = [];
+              const dates = Object.keys(mealsByDate || {}).sort().reverse();
+              const columnsSet = new Set();
 
-              for (const date of dates) {
-                const meals = mealsByDate[date] || [];
-                if (meals.length > 0) {
-                  columns = Object.keys(meals[0]).filter(col => col !== 'source');
-                  break;
+              for (const meals of Object.values(mealsByDate || {})) {
+                for (const meal of meals) {
+                  Object.keys(meal).forEach(key => {
+                    if (key !== 'source') columnsSet.add(key);
+                  });
                 }
               }
+
+              const columns = Array.from(columnsSet).sort();
 
               theadRow.innerHTML = ['<th>日付</th>', ...columns.map(c => `<th>${c}</th>`)].join('');
 
