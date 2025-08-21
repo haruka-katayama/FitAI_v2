@@ -277,6 +277,7 @@ async def get_dashboard_summary(
             for row in steps_rows
         }
 
+        # 食事
         meals_query = f"""
         SELECT
             when_date,
