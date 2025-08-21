@@ -116,7 +116,7 @@ async def get_meals_dashboard_data(
         meals_query_fallback = f"""
         SELECT
             when_date,
-            TO_BASE64(image_blob) AS image_base64,
+            image_base64,
             kcal
         FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS_DASHBOARD}`
         WHERE user_id = @user_id
