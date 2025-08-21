@@ -2,6 +2,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
+from google.api_core.exceptions import BadRequest
 from google.cloud import bigquery
 from app.database.bigquery import bq_client
 from app.config import settings
@@ -21,12 +22,16 @@ def _run_bq_with_fallback(
     job_config = bigquery.QueryJobConfig(query_parameters=params)
     try:
         return list(bq_client.query(primary_sql, job_config=job_config).result())
-    except Exception as e:
-        if not fallback_sql:
-            raise
-        # 列不存在などスキーマ差異想定の例外でフォールバック（他の致命的エラーも含めてリトライ）
-        job_config_fb = bigquery.QueryJobConfig(query_parameters=params)
-        return list(bq_client.query(fallback_sql, job_config=job_config_fb).result())
+    except BadRequest as e:
+        # フォールバックは列不存在などスキーマ差異が原因のエラー時のみ実行
+        messages = " ".join(err.get("message", "").lower() for err in getattr(e, "errors", []))
+        if fallback_sql and (
+            "unrecognized name" in messages or "no such field" in messages
+        ):
+            job_config_fb = bigquery.QueryJobConfig(query_parameters=params)
+            return list(bq_client.query(fallback_sql, job_config=job_config_fb).result())
+        # それ以外の例外はそのまま呼び出し元へ
+        raise
 
 
 @router.get("/fitbit")
