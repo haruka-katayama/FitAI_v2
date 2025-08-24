@@ -112,6 +112,8 @@ async def ui_meal_image(
         logger.info(f"[MEAL_IMAGE] calling OpenAI, request_id={request_id}")
         text = await vision_extract_meal_bytes(data, mime, memo)
         logger.info(f"[MEAL_IMAGE] OpenAI done, request_id={request_id}")
+        if memo:
+            text = text.replace(f"ユーザーのメモ: {memo}", "").replace(memo, "").strip()
     except Exception as e:
         logger.exception(f"[MEAL_IMAGE] OpenAI error request_id={request_id}")
         return JSONResponse(
