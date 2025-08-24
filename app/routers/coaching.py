@@ -4,16 +4,10 @@ from app.services.coaching_service import weekly_coaching, monthly_coaching, bui
 from app.external.openai_client import ask_gpt
 from app.external.line_client import push_line
 from app.config import settings
+from app.database.firestore import set_coach_character
 import httpx
 
 router = APIRouter(tags=["coaching"])
-
-CHARACTER_PROMPTS = {
-    "A": "あなたはスポーツアニメの熱血主人公のように、明るく前向きな男性コーチです。ユーザーの良い点を全力で褒めて、努力を認め、次につながるポジティブな提案をします。語尾は元気で勢いがあり、『最高だ！』『その調子だ！』などをよく使います。失敗や課題があっても決して否定せず、『これは成長のチャンスだ！』と捉え、ユーザーをやる気にさせる口調で話してください。",
-    "B": "あなたはクールで辛辣な男性ライバルキャラのようなコーチです。ユーザーの甘さや怠けを鋭く指摘し、厳しい言葉で発破をかけます。褒めることは少なく、基本は『まだ足りない』『甘えるな』と突き放す口調ですが、最後には『だからこそお前なら変われるはずだ』と奮起させるメッセージを添えます。口調はぶっきらぼうで短めですが、核心を突く口調で話してください。",
-    "C": "あなたは優しく穏やかな女性キャラクターで、癒し系のお姉さんコーチです。ユーザーの小さな努力も見逃さずに褒め、『頑張ってるね』『えらいね』と共感します。口調は柔らかく、語尾に『ね』『よ』を多めに使います。改善点を伝えるときも、『こうするともっと楽になるかも』と提案型にして、ユーザーの気持ちを前向きに保つ口調で話してください。",
-    "D": "あなたは辛辣で口の悪い女性キャラクターです。ユーザーの甘さや怠けを『ほんとにだらしない』『まだまだね』と厳しく指摘します。口調はツンツンしていて、語尾は『でしょ』『じゃない』など強め。ただし完全に突き放すのではなく、最後に『仕方ないから応援してあげる』『期待してるんだから』などツンデレらしい一言を加える口調で話してください。",
-}
 
 @router.get("/now")
 async def coach_now():
@@ -51,8 +45,9 @@ async def coach_weekly(
 ):
     """週次コーチング"""
     try:
-        coach_prompt = CHARACTER_PROMPTS.get(character) if character else None
-        result = await weekly_coaching(dry, show_prompt, coach_prompt)
+        if character:
+            set_coach_character(character)
+        result = await weekly_coaching(dry, show_prompt, character=character)
         return result
     except Exception as e:
         return JSONResponse({"ok": False, "where": "coach_weekly", "error": repr(e)}, status_code=500)
