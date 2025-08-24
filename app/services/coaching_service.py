@@ -3,9 +3,16 @@ from typing import List, Dict, Any, Optional
 from app.external.openai_client import ask_gpt
 from app.external.line_client import push_line
 from app.services.meal_service import meals_last_n_days
-from app.database.firestore import get_latest_profile, user_doc
+from app.database.firestore import get_latest_profile, user_doc, get_coach_character
 from app.database.bigquery import bq_upsert_profile, bq_insert_rows, bq_client
 from app.config import settings
+
+CHARACTER_PROMPTS = {
+    "A": "あなたはスポーツアニメの熱血主人公のように、明るく前向きな男性コーチです。ユーザーの良い点を全力で褒めて、努力を認め、次につながるポジティブな提案をします。語尾は元気で勢いがあり、『最高だ！』『その調子だ！』などをよく使います。失敗や課題があっても決して否定せず、『これは成長のチャンスだ！』と捉え、ユーザーをやる気にさせる口調で話してください。",
+    "B": "あなたはクールで辛辣な男性ライバルキャラのようなコーチです。ユーザーの甘さや怠けを鋭く指摘し、厳しい言葉で発破をかけます。褒めることは少なく、基本は『まだ足りない』『甘えるな』と突き放す口調ですが、最後には『だからこそお前なら変われるはずだ』と奮起させるメッセージを添えます。口調はぶっきらぼうで短めですが、核心を突く口調で話してください。",
+    "C": "あなたは優しく穏やかな女性キャラクターで、癒し系のお姉さんコーチです。ユーザーの小さな努力も見逃さずに褒め、『頑張ってるね』『えらいね』と共感します。口調は柔らかく、語尾に『ね』『よ』を多めに使います。改善点を伝えるときも、『こうするともっと楽になるかも』と提案型にして、ユーザーの気持ちを前向きに保つ口調で話してください。",
+    "D": "あなたは辛辣で口の悪い女性キャラクターです。ユーザーの甘さや怠けを『ほんとにだらしない』『まだまだね』と厳しく指摘します。口調はツンツンしていて、語尾は『でしょ』『じゃない』など強め。ただし完全に突き放すのではなく、最後に『仕方ないから応援してあげる』『期待してるんだから』などツンデレらしい一言を加える口調で話してください。",
+}
 
 def build_daily_prompt(day: Dict[str, Any]) -> str:
     """日次コーチング用プロンプトを生成"""
@@ -178,23 +185,29 @@ async def weekly_coaching(
     dry: bool = False,
     show_prompt: bool = False,
     coach_prompt: Optional[str] = None,
+    character: str | None = None,
 ) -> Dict[str, Any]:
     """コーチングを実行"""
     try:
         # 循環インポートを避けるため、ここで import
         from app.services.fitbit_service import fitbit_last_n_days, save_fitbit_daily_firestore
         from app.database.bigquery import bq_upsert_fitbit_days
-        
+
+        if coach_prompt is None:
+            char_key = character or get_coach_character("demo")
+            if char_key:
+                coach_prompt = CHARACTER_PROMPTS.get(char_key)
+
         # 直近7日 Fitbit
         days = await fitbit_last_n_days(7)
-        
+
         # Firestore保存
         saved = [save_fitbit_daily_firestore("demo", d) for d in days]
-        
+
         # BigQuery保存
         bq_fitbit = bq_upsert_fitbit_days("demo", days)
         bq_prof   = bq_upsert_profile("demo")
-        
+
         # 週次プロンプト準備
         meals_map = await meals_last_n_days(7, "demo")
         profile   = get_latest_profile("demo")
