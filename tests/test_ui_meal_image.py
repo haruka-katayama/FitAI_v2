@@ -59,10 +59,11 @@ def test_meal_image_includes_memo(monkeypatch):
 
     async def fake_vision(data, mime, memo=None):
         called["memo"] = memo
-        return "ok"
+        return f"これは説明\nユーザーのメモ: {memo}"
 
     def fake_save(payload, user_id):
         called["notes"] = payload.get("notes")
+        called["text"] = payload.get("text")
         return {"ok": True, "dedup_key": "x", "firestore": {"skipped": False}}
 
     monkeypatch.setattr(
@@ -85,6 +86,7 @@ def test_meal_image_includes_memo(monkeypatch):
     assert resp.json()["ok"] is True
     assert called["memo"] == "ご飯大盛り"
     assert called["notes"] is None
+    assert "ご飯大盛り" not in called["text"]
 
 
 def test_meal_image_saves_base64(monkeypatch):
