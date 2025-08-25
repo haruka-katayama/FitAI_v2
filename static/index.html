@@ -1581,16 +1581,25 @@
             async loadIntegrationStatus() {
                 try {
                     const res = await this.apiCall('/integration/status?user_id=demo');
-                    if (res.fitbit?.linked) {
-                        const fitbitBtn = document.getElementById('fitbit-link-btn');
-                        if (fitbitBtn) {
-                            fitbitBtn.textContent = '連携済み';
+                    const fitbitBtn = document.getElementById('fitbit-link-btn');
+                    if (fitbitBtn) {
+                        if (res.fitbit?.linked) {
+                            fitbitBtn.textContent = 'Fitbitを連携済み';
+                            fitbitBtn.classList.add('btn-success');
+                        } else {
+                            fitbitBtn.textContent = 'Fitbitを連携する';
+                            fitbitBtn.classList.remove('btn-success');
                         }
                     }
-                    if (res.healthplanet?.linked) {
-                        const hpBtn = document.getElementById('healthplanet-link-btn');
-                        if (hpBtn) {
-                            hpBtn.textContent = '連携済み';
+
+                    const hpBtn = document.getElementById('healthplanet-link-btn');
+                    if (hpBtn) {
+                        if (res.healthplanet?.linked) {
+                            hpBtn.textContent = 'Health Planetを連携済み';
+                            hpBtn.classList.add('btn-success');
+                        } else {
+                            hpBtn.textContent = 'Health Planetを連携する';
+                            hpBtn.classList.remove('btn-success');
                         }
                     }
                 } catch (error) {
