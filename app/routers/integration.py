@@ -8,7 +8,7 @@ router = APIRouter(prefix="/integration", tags=["integration"])
 def integration_status(user_id: str = "demo"):
     """Return integration status for Fitbit and Health Planet."""
     if user_id == "demo":
-        return {"fitbit": True, "healthplanet": True}
+        return {"fitbit": {"linked": True}, "healthplanet": {"linked": True}}
 
     fitbit = False
     healthplanet = False
@@ -21,4 +21,4 @@ def integration_status(user_id: str = "demo"):
     except Exception:
         pass
 
-    return {"fitbit": fitbit, "healthplanet": healthplanet}
+    return {"fitbit": {"linked": fitbit}, "healthplanet": {"linked": healthplanet}}
