@@ -52,7 +52,7 @@ async def auth_fitbit(code: str = "", state: str = ""):
         })
         
         push_line("✅ Fitbit連携が完了しました")
-        return RedirectResponse(url="/")
+        return RedirectResponse(url="/#integration")
     except httpx.HTTPStatusError as e:
         return JSONResponse({"ok": False, "where": "exchange", "status": e.response.status_code, "body": e.response.text}, status_code=500)
     except Exception as e:
