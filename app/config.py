@@ -18,7 +18,7 @@ class Settings:
     HEALTHPLANET_CLIENT_ID: Optional[str] = os.getenv("HEALTHPLANET_CLIENT_ID")
     HEALTHPLANET_CLIENT_SECRET: Optional[str] = os.getenv("HEALTHPLANET_CLIENT_SECRET")
     HEALTHPLANET_SCOPE: str = os.getenv("HEALTHPLANET_SCOPE", "innerscan")
-    HP_REDIRECT_URI: str = "https://www.healthplanet.jp/success.html"
+    HP_REDIRECT_URI: str = os.getenv("HP_REDIRECT_URI", "https://www.healthplanet.jp/success.html")
     
     # LINE
     LINE_ACCESS_TOKEN: Optional[str] = os.getenv("LINE_ACCESS_TOKEN")
