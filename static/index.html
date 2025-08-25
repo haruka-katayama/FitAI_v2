@@ -1176,6 +1176,7 @@
                 document.getElementById('end-date').value = this.formatDate(today);
                 this.setDefaultMealDateTime();
                 this.selectCoach(this.selectedCoach);
+                this.loadIntegrationStatus();
             }
 
             // イベントリスナー設定
@@ -1230,6 +1231,20 @@
                         this.showPage(this.currentPage);
                     }
                 });
+
+                // 外部サービス連携ボタン
+                const fitbitBtn = document.getElementById('fitbit-link-btn');
+                if (fitbitBtn) {
+                    fitbitBtn.addEventListener('click', () => {
+                        window.location.href = '/fitbit/login';
+                    });
+                }
+                const healthplanetBtn = document.getElementById('healthplanet-link-btn');
+                if (healthplanetBtn) {
+                    healthplanetBtn.addEventListener('click', () => {
+                        window.location.href = '/healthplanet/login';
+                    });
+                }
             }
 
             // PWA設定
@@ -1440,6 +1455,9 @@
                 if (pageId === 'meal') {
                     this.setDefaultMealDateTime();
                 }
+                if (pageId === 'integration') {
+                    this.loadIntegrationStatus();
+                }
             }
 
             // API呼び出しヘルパー
@@ -1547,6 +1565,27 @@
 
                 } catch (error) {
                     console.error('Failed to load profile:', error);
+                }
+            }
+
+            // 外部サービス連携状況を取得
+            async loadIntegrationStatus() {
+                try {
+                    const res = await this.apiCall('/integration/status?user_id=demo');
+                    if (res.fitbit?.linked) {
+                        const fitbitBtn = document.getElementById('fitbit-link-btn');
+                        if (fitbitBtn) {
+                            fitbitBtn.textContent = '連携済み';
+                        }
+                    }
+                    if (res.healthplanet?.linked) {
+                        const hpBtn = document.getElementById('healthplanet-link-btn');
+                        if (hpBtn) {
+                            hpBtn.textContent = '連携済み';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to load integration status:', error);
                 }
             }
 
