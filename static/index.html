@@ -1919,7 +1919,8 @@ initializeDashboard() {
                             backgroundColor: 'rgba(16, 185, 129, 0.1)',
                             borderWidth: 3,
                             fill: true,
-                            tension: 0.4
+                            tension: 0.4,
+                            spanGaps: true
                         }]
                     },
                     options: this.getChartOptions('体重 (kg)')
@@ -1940,7 +1941,8 @@ initializeDashboard() {
                             backgroundColor: 'rgba(59, 130, 246, 0.1)',
                             borderWidth: 3,
                             fill: true,
-                            tension: 0.4
+                            tension: 0.4,
+                            spanGaps: true
                         }]
                     },
                     options: this.getChartOptions('体脂肪率 (%)')
@@ -2136,12 +2138,12 @@ try {
               }
 
               this.charts.weight.data.labels = data.dates;
-              this.charts.weight.data.datasets[0].data = data.weight_kg || [];
+              this.charts.weight.data.datasets[0].data = data.dates.map((_, i) => (data.weight_kg || [])[i] ?? null);
               this.charts.weight.update();
 
               if (this.charts.bodyFat) {
                 this.charts.bodyFat.data.labels = data.dates;
-                this.charts.bodyFat.data.datasets[0].data = data.fat_percentage || [];
+                this.charts.bodyFat.data.datasets[0].data = data.dates.map((_, i) => (data.fat_percentage || [])[i] ?? null);
                 this.charts.bodyFat.update();
               }
 
