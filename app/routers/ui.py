@@ -34,6 +34,26 @@ def _resolve_user_id(x_user_id: str | None) -> str:
     # 暫定としてヘッダ優先→なければ "demo"
     return x_user_id or "demo"
 
+
+def _compress_image_to_limit(data: bytes, mime: str, max_size: int) -> tuple[bytes, str]:
+    """画像を max_size 未満になるよう自動圧縮する"""
+    if Image is None:
+        return data, mime
+    try:
+        img = Image.open(BytesIO(data))
+        img = img.convert("RGB")
+        img.thumbnail((1024, 1024))
+        for quality in range(95, 19, -5):
+            buf = BytesIO()
+            img.save(buf, format="JPEG", quality=quality)
+            compressed = buf.getvalue()
+            if len(compressed) <= max_size:
+                return compressed, "image/jpeg"
+        return compressed, "image/jpeg"
+    except Exception as e:
+        logger.warning(f"[MEAL_IMAGE] auto compression failed: {e}")
+        return data, mime
+
 @router.post("/meal_image")
 async def ui_meal_image(
     x_api_token: str | None = Header(None, alias="x-api-token"),
@@ -61,14 +81,20 @@ async def ui_meal_image(
 
     max_size = 1024 * 1024  # 1MB
     if len(data) > max_size:
-        return JSONResponse(
-            {
-                "ok": False,
-                "error": "File too large",
-                "message": "ファイルサイズを1MB未満にしてください",
-                "request_id": request_id,
-            },
-            status_code=400,
+        original_size = len(data)
+        data, mime = _compress_image_to_limit(data, mime, max_size)
+        if len(data) > max_size:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "File too large",
+                    "message": "ファイルサイズを1MB未満にしてください",
+                    "request_id": request_id,
+                },
+                status_code=400,
+            )
+        logger.info(
+            f"[MEAL_IMAGE] compressed image from {original_size} to {len(data)} bytes"
         )
 
     if dry:
@@ -240,13 +266,19 @@ async def ui_meal_image_preview(
 
     max_size = 1024 * 1024  # 1MB
     if len(data) > max_size:
-        return JSONResponse(
-            {
-                "ok": False,
-                "error": "File too large",
-                "message": "ファイルサイズを1MB未満にしてください",
-            },
-            status_code=400,
+        original_size = len(data)
+        data, mime = _compress_image_to_limit(data, mime, max_size)
+        if len(data) > max_size:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": "File too large",
+                    "message": "ファイルサイズを1MB未満にしてください",
+                },
+                status_code=400,
+            )
+        logger.info(
+            f"[MEAL_IMAGE] compressed preview image from {original_size} to {len(data)} bytes"
         )
 
     if not settings.OPENAI_API_KEY:

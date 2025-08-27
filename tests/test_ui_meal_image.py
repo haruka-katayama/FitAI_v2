@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+import pytest
 
 os.environ.setdefault("FIRESTORE_EMULATOR_HOST", "localhost:8080")
 os.environ.setdefault("OPENAI_API_KEY", "test")
@@ -15,6 +16,19 @@ from main import app
 client = TestClient(app)
 
 
+def _create_large_image_bytes() -> bytes:
+    pytest.importorskip("PIL")
+    from PIL import Image
+    import io
+
+    img = Image.new("RGB", (3000, 3000), color="red")
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=95)
+    data = buf.getvalue()
+    assert len(data) > 1024 * 1024
+    return data
+
+
 def test_meal_image_empty_file_returns_400():
     response = client.post(
         "/ui/meal_image?dry=true",
@@ -24,14 +38,14 @@ def test_meal_image_empty_file_returns_400():
     assert response.json()["error"] == "Empty file"
 
 
-def test_meal_image_too_large_returns_400():
-    big_data = b"0" * (1024 * 1024 + 1)
+def test_meal_image_large_image_is_compressed():
+    big_data = _create_large_image_bytes()
     response = client.post(
         "/ui/meal_image?dry=true",
-        files={"file": ("big.png", big_data, "image/png")},
+        files={"file": ("big.jpg", big_data, "image/jpeg")},
     )
-    assert response.status_code == 400
-    assert response.json()["error"] == "File too large"
+    assert response.status_code == 200
+    assert response.json()["size"] <= 1024 * 1024
 
 
 def test_meal_image_preview_empty_file_returns_400():
@@ -43,14 +57,23 @@ def test_meal_image_preview_empty_file_returns_400():
     assert response.json()["error"] == "Empty file"
 
 
-def test_meal_image_preview_too_large_returns_400():
-    big_data = b"0" * (1024 * 1024 + 1)
+def test_meal_image_preview_large_image_is_compressed(monkeypatch):
+    async def fake_vision(data, mime, memo=None):
+        return "ok"
+
+    monkeypatch.setattr(
+        "app.routers.ui.vision_extract_meal_bytes", fake_vision
+    )
+    import app.routers.ui as ui
+    monkeypatch.setattr(ui.settings, "OPENAI_API_KEY", "test", raising=False)
+
+    big_data = _create_large_image_bytes()
     response = client.post(
         "/ui/meal_image/preview",
-        files={"file": ("big.png", big_data, "image/png")},
+        files={"file": ("big.jpg", big_data, "image/jpeg")},
     )
-    assert response.status_code == 400
-    assert response.json()["error"] == "File too large"
+    assert response.status_code == 200
+    assert response.json()["size"] <= 1024 * 1024
 
 
 def test_meal_image_includes_memo(monkeypatch):
