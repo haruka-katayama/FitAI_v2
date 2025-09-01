@@ -1742,21 +1742,9 @@
                             document.getElementById('meal-status').appendChild(previewDiv);
                         }
 
-                        // メモがある場合は追加で送信
+                        // メモが入力されている場合は解析に利用したことのみ通知
                         if (mealMemo.trim()) {
-                            try {
-                                await this.apiCall('/ui/meal', {
-                                    method: 'POST',
-                                    body: JSON.stringify({
-                                        when: whenISO,
-                                        text: mealMemo,
-                                        kcal: null
-                                    })
-                                });
-                                this.showStatus('meal-status', '💬 メモも登録しました', 'success', true);
-                            } catch (error) {
-                                this.showStatus('meal-status', '⚠️ メモ保存に失敗（スキップ）', 'warning', true);
-                            }
+                            this.showStatus('meal-status', '💬 メモを解析に利用しました', 'info', true);
                         }
 
                         // フォームリセット

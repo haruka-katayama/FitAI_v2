@@ -124,6 +124,7 @@ async def ui_meal_image(
     try:
         if Image is not None:
             img = Image.open(BytesIO(data))
+            img = img.convert("RGB")
             img.thumbnail((512, 512))
             buf = BytesIO()
             img.save(buf, format="JPEG", quality=75)

@@ -21,7 +21,8 @@ def _create_large_image_bytes() -> bytes:
     from PIL import Image
     import io
 
-    img = Image.new("RGB", (3000, 3000), color="red")
+    # 単色画像だとJPEG圧縮で1MB未満になることがあるためノイズ画像を生成
+    img = Image.effect_noise((3000, 3000), 100).convert("RGB")
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=95)
     data = buf.getvalue()
