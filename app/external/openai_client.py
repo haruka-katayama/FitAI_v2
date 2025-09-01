@@ -69,7 +69,7 @@ async def vision_extract_meal_bytes(
 
     # Chat Completions API with Vision形式に修正
     body = {
-        "model": "gpt-4o",  # Vision対応モデルを明示的に指定
+        "model": "gpt-5",  # Vision対応モデルを明示的に指定
         "messages": [{"role": "user", "content": content}],
         "max_tokens": 500,
         "temperature": 0.3,
