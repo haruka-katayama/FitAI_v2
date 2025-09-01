@@ -8,21 +8,17 @@ async def ask_gpt(text: str) -> str:
         return "（OPENAI_API_KEY が未設定です）"
     
     headers = {
-        "Authorization": f"Bearer {settings.OPENAI_API_KEY}", 
-        "Content-Type": "application/json"
+        "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
+        "Content-Type": "application/json",
     }
     
-    # Chat Completions API形式に修正
     body = {
         "model": settings.OPENAI_MODEL,
         "messages": [
-            {
-                "role": "user",
-                "content": text
-            }
+            {"role": "user", "content": text}
         ],
         "max_tokens": 1500,
-        "temperature": 0.7
+        "temperature": 0.7,
     }
     
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -31,11 +27,11 @@ async def ask_gpt(text: str) -> str:
         data = r.json()
         return data["choices"][0]["message"]["content"]
 
+
 async def vision_extract_meal_bytes(
     data: bytes, mime: str | None, memo: str | None = None
 ) -> str:
-    """画像バイナリを base64 で直接 OpenAI に渡して食事内容を短く要約
-
+    """画像バイナリを base64 データURLで OpenAI に渡して食事内容を短く要約。
     メモがある場合はプロンプトに含める。"""
     if not settings.OPENAI_API_KEY:
         return "（OPENAI_API_KEY が未設定です）"
@@ -44,6 +40,7 @@ async def vision_extract_meal_bytes(
         "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
         "Content-Type": "application/json",
     }
+
     instruction = (
         "この食事写真を短い日本語テキストで説明してください。"
         "写っている料理名を端的に列挙してください。"
@@ -55,7 +52,6 @@ async def vision_extract_meal_bytes(
     content = [
         {"type": "text", "text": instruction}
     ]
-
     if memo:
         content.append({"type": "text", "text": f"ユーザーのメモ: {memo}"})
 
@@ -69,9 +65,9 @@ async def vision_extract_meal_bytes(
         }
     )
 
-    # Chat Completions API with Vision形式に修正
     body = {
-        "model": "gpt-4o",  # Vision対応モデルを明示的に指定
+        # Vision 対応モデル（必要に応じて settings 側で管理してもOK）
+        "model": "gpt-4o",
         "messages": [{"role": "user", "content": content}],
         "max_tokens": 500,
         "temperature": 0.3,
