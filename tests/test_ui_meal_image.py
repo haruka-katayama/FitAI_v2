@@ -20,8 +20,11 @@ def _create_large_image_bytes() -> bytes:
     pytest.importorskip("PIL")
     from PIL import Image
     import io
+    import os
 
-    img = Image.new("RGB", (3000, 3000), color="red")
+    size = (3000, 3000)
+    random_bytes = os.urandom(size[0] * size[1] * 3)
+    img = Image.frombytes("RGB", size, random_bytes)
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=95)
     data = buf.getvalue()
