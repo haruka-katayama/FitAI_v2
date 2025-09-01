@@ -26,7 +26,7 @@ class Settings:
     
     # OpenAI - デフォルトをgpt-4oに変更（Chat Completions APIで確実に動作する）
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
-    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-5")
     
     # Fitbit
     FITBIT_CLIENT_ID: Optional[str] = os.getenv("FITBIT_CLIENT_ID")
