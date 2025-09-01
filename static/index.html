@@ -1699,7 +1699,7 @@
 
                     const whenISO = `${mealDate}T${mealTime}:00`;
 
-                    // FormData for file upload (memo is sent only for GPT context)
+                    // FormData for file upload
                     const formData = new FormData();
                     formData.append('file', this.selectedFile);
                     formData.append('when', whenISO);
@@ -1740,6 +1740,23 @@
                             previewDiv.className = 'coaching-result';
                             previewDiv.innerHTML = `<h3>📝 画像要約</h3><p>${result.preview}</p>`;
                             document.getElementById('meal-status').appendChild(previewDiv);
+                        }
+
+                        // メモがある場合は追加で送信
+                        if (mealMemo.trim()) {
+                            try {
+                                await this.apiCall('/ui/meal', {
+                                    method: 'POST',
+                                    body: JSON.stringify({
+                                        when: whenISO,
+                                        text: mealMemo,
+                                        kcal: null
+                                    })
+                                });
+                                this.showStatus('meal-status', '💬 メモも登録しました', 'success', true);
+                            } catch (error) {
+                                this.showStatus('meal-status', '⚠️ メモ保存に失敗（スキップ）', 'warning', true);
+                            }
                         }
 
                         // フォームリセット
