@@ -4,13 +4,8 @@ from fastapi import APIRouter, Header, File, UploadFile, Form, Query
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
 from typing import Dict, Any
-from app.models.meal import MealIn, MealUpdate
-from app.services.meal_service import (
-    save_meal_to_stores,
-    validate_meal_data,
-    update_meal_kcal,
-    delete_meal,
-)
+from app.models.meal import MealIn
+from app.services.meal_service import save_meal_to_stores, validate_meal_data
 from app.external.openai_client import vision_extract_meal_bytes
 from app.config import settings
 from app.utils.auth_utils import require_token
@@ -129,7 +124,6 @@ async def ui_meal_image(
     try:
         if Image is not None:
             img = Image.open(BytesIO(data))
-            img = img.convert("RGB")
             img.thumbnail((512, 512))
             buf = BytesIO()
             img.save(buf, format="JPEG", quality=75)
@@ -256,39 +250,6 @@ def ui_meal(
     except Exception as e:
         logger.exception(f"[MEAL_TEXT] error request_id={request_id}")
         return JSONResponse({"ok": False, "error": str(e), "request_id": request_id}, status_code=500)
-
-
-@router.patch("/meal/{dedup_key}")
-def ui_update_meal(
-    dedup_key: str,
-    body: MealUpdate,
-    x_api_token: str | None = Header(None, alias="x-api-token"),
-    x_user_id: str | None = Header(None, alias="x-user-id"),
-):
-    require_token(x_api_token)
-    user_id = _resolve_user_id(x_user_id)
-    if body.kcal is None:
-        return JSONResponse({"ok": False, "error": "kcal is required"}, status_code=400)
-
-    result = update_meal_kcal(dedup_key, body.kcal, user_id)
-    if result["ok"]:
-        return {"ok": True, "dedup_key": dedup_key}
-    return JSONResponse({"ok": False, "error": "Failed to update meal", "details": result}, status_code=500)
-
-
-@router.delete("/meal/{dedup_key}")
-def ui_delete_meal(
-    dedup_key: str,
-    x_api_token: str | None = Header(None, alias="x-api-token"),
-    x_user_id: str | None = Header(None, alias="x-user-id"),
-):
-    require_token(x_api_token)
-    user_id = _resolve_user_id(x_user_id)
-
-    result = delete_meal(dedup_key, user_id)
-    if result["ok"]:
-        return {"ok": True, "dedup_key": dedup_key}
-    return JSONResponse({"ok": False, "error": "Failed to delete meal", "details": result}, status_code=500)
 
 # ⭐ プレビュー専用：保存なし
 @router.post("/meal_image/preview")

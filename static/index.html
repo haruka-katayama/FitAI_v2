@@ -2203,13 +2203,13 @@ try {
               theadRow.innerHTML = '';
 
               const dates = Object.keys(mealsByDate || {}).sort().reverse();
-              theadRow.innerHTML = '<th>日付</th><th>画像</th><th>摂取カロリー</th><th>操作</th>';
+              theadRow.innerHTML = '<th>日付</th><th>画像</th><th>摂取カロリー</th>';
 
               for (const date of dates) {
                 const meals = mealsByDate[date] || [];
                 if (meals.length === 0) {
                   const tr = document.createElement('tr');
-                  tr.innerHTML = `<td>${date}</td><td colspan="3">--</td>`;
+                  tr.innerHTML = `<td>${date}</td><td colspan="2">--</td>`;
                   tbody.appendChild(tr);
                   continue;
                 }
@@ -2219,55 +2219,9 @@ try {
                     ? `<img src="data:image/jpeg;base64,${meal.image_base64}" style="max-width:100px;height:auto;" />`
                     : '';
                   const kcal = meal.kcal !== undefined && meal.kcal !== null ? meal.kcal : '';
-                  const key = meal.dedup_key || '';
-                  tr.innerHTML = `<td>${date}</td><td>${imgHtml}</td>` +
-                    `<td><input type="number" value="${kcal}" data-dedup-key="${key}" style="width:80px;"></td>` +
-                    `<td><button class="update-meal-btn" data-dedup-key="${key}">保存</button> ` +
-                    `<button class="delete-meal-btn" data-dedup-key="${key}">削除</button></td>`;
+                  tr.innerHTML = `<td>${date}</td><td>${imgHtml}</td><td>${kcal}</td>`;
                   tbody.appendChild(tr);
                 }
-              }
-
-              tbody.querySelectorAll('.update-meal-btn').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                  const key = btn.dataset.dedupKey;
-                  const input = tbody.querySelector(`input[data-dedup-key="${key}"]`);
-                  const val = input ? input.value : '';
-                  await this.updateMealKcal(key, val);
-                });
-              });
-
-              tbody.querySelectorAll('.delete-meal-btn').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                  const key = btn.dataset.dedupKey;
-                  if (!confirm('削除しますか？')) return;
-                  await this.deleteMeal(key);
-                });
-              });
-            }
-
-            async updateMealKcal(dedupKey, kcal) {
-              try {
-                await this.apiCall(`/ui/meal/${dedupKey}`, {
-                  method: 'PATCH',
-                  body: JSON.stringify({ kcal: parseFloat(kcal) })
-                });
-                this.showStatus('dashboard-status', 'カロリーを更新しました', 'success');
-                this.updateDashboard();
-              } catch (e) {
-                console.error(e);
-                this.showStatus('dashboard-status', '更新に失敗しました', 'error');
-              }
-            }
-
-            async deleteMeal(dedupKey) {
-              try {
-                await this.apiCall(`/ui/meal/${dedupKey}`, { method: 'DELETE' });
-                this.showStatus('dashboard-status', '削除しました', 'success');
-                this.updateDashboard();
-              } catch (e) {
-                console.error(e);
-                this.showStatus('dashboard-status', '削除に失敗しました', 'error');
               }
             }
 

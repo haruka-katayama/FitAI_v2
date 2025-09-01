@@ -13,10 +13,3 @@ class MealIn(BaseModel):
     def dict(self):
         """Pydantic v1互換のdict()メソッド"""
         return self.model_dump()
-
-
-class MealUpdate(BaseModel):
-    kcal: Optional[float] = None
-
-    def dict(self):
-        return self.model_dump()

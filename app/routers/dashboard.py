@@ -75,8 +75,7 @@ async def get_meals_dashboard_data(
         SELECT
             when_date,
             image_base64,
-            kcal,
-            dedup_key
+            kcal
         FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS_DASHBOARD}`
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
@@ -100,7 +99,6 @@ async def get_meals_dashboard_data(
             meal_data = {
                 "image_base64": getattr(row, "image_base64", None),
                 "kcal": float(row.kcal) if row.kcal is not None else None,
-                "dedup_key": getattr(row, "dedup_key", None),
             }
 
             if date_str not in meals_by_date:
@@ -284,8 +282,7 @@ async def get_dashboard_summary(
         SELECT
             when_date,
             image_base64,
-            kcal,
-            dedup_key
+            kcal
         FROM `{settings.BQ_PROJECT_ID}.{settings.BQ_DATASET}.{settings.BQ_TABLE_MEALS_DASHBOARD}`
         WHERE user_id = @user_id
           AND when_date BETWEEN @start_date AND @end_date
@@ -300,7 +297,6 @@ async def get_dashboard_summary(
                 {
                     "image_base64": getattr(row, "image_base64", None),
                     "kcal": float(row.kcal) if row.kcal is not None else None,
-                    "dedup_key": getattr(row, "dedup_key", None),
                 }
             )
 
