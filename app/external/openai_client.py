@@ -63,7 +63,9 @@ async def vision_extract_meal_bytes(
     content.append(
         {
             "type": "image_url",
-            "image_url": {"url": f"data:{mime or 'image/jpeg'};base64,{b64}"},
+            "image_url": {
+                "url": f"data:{mime or 'image/jpeg'};base64,{b64}"
+            },
         }
     )
 
