@@ -53,17 +53,17 @@ async def vision_extract_meal_bytes(
     )
 
     content = [
-        {"type": "text", "text": instruction}
+        {"type": "input_text", "text": instruction}
     ]
 
     if memo:
-        content.append({"type": "text", "text": f"ユーザーのメモ: {memo}"})
+        content.append({"type": "input_text", "text": f"ユーザーのメモ: {memo}"})
 
     b64 = base64.b64encode(data).decode("utf-8")
     content.append(
         {
-            "type": "image_url",
-            "image_url": {"url": f"data:{mime or 'image/jpeg'};base64,{b64}"},
+            "type": "input_image",
+            "image_url": f"data:{mime or 'image/jpeg'};base64,{b64}",
         }
     )
 
