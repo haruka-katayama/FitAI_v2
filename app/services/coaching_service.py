@@ -196,7 +196,10 @@ async def weekly_coaching(
         if coach_prompt is None:
             char_key = character or get_coach_character("demo")
             if char_key:
-                coach_prompt = CHARACTER_PROMPTS.get(char_key)
+                char_key = char_key.upper()
+                coach_prompt = CHARACTER_PROMPTS.get(char_key, CHARACTER_PROMPTS["A"])
+            else:
+                coach_prompt = CHARACTER_PROMPTS["A"]
 
         # 直近7日 Fitbit
         days = await fitbit_last_n_days(7)
