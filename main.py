@@ -29,6 +29,11 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+try:
+    from PIL import Image  # noqa: F401
+except ImportError:
+    logger.warning("Pillow is not installed. Install it with 'pip install Pillow' to enable image processing.")
+
 app = FastAPI(
     title="FitLine API",
     description="Fitness tracking and coaching application with multi-device support",
