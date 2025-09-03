@@ -6,9 +6,15 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # 必要なシステムパッケージをインストール
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    libjpeg62-turbo \
+    zlib1g \
+    libtiff6 \
+    libfreetype6 \
+    libwebp7 \
+    libopenjp2-7 \
+ && rm -rf /var/lib/apt/lists/*
 
 # 作業ディレクトリ設定
 WORKDIR /app
