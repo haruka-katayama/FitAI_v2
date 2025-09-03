@@ -22,7 +22,6 @@ WORKDIR /app
 # 依存関係ファイルをコピーしてインストール
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir Pillow && \
     pip install --no-cache-dir -r requirements.txt
 
 # アプリケーションコードをコピー
