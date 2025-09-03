@@ -79,7 +79,7 @@ async def ui_meal_image(
             status_code=400,
         )
 
-    max_size = 5 * 1024 * 1024  # 5MB
+    max_size = 1 * 1024 * 1024  # 1MB
     if len(data) > max_size:
         original_size = len(data)
         data, mime = _compress_image_to_limit(data, mime, max_size)
@@ -265,7 +265,7 @@ async def ui_meal_image_preview(
     if len(data) == 0:
         return JSONResponse({"ok": False, "error": "Empty file"}, status_code=400)
 
-    max_size = 5 * 1024 * 1024  # 5MB
+    max_size = 1 * 1024 * 1024  # 1MB
     if len(data) > max_size:
         original_size = len(data)
         data, mime = _compress_image_to_limit(data, mime, max_size)
@@ -274,7 +274,7 @@ async def ui_meal_image_preview(
                 {
                     "ok": False,
                     "error": "File too large",
-                    "message": "ファイルサイズを5MB未満にしてください",
+                    "message": "ファイルサイズを1MB未満にしてください",
                 },
                 status_code=400,
             )
