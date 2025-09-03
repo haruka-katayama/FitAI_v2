@@ -21,12 +21,12 @@ def _create_large_image_bytes() -> bytes:
     from PIL import Image
     import io
 
-    # 単色画像だとJPEG圧縮で1MB未満になることがあるためノイズ画像を生成
+    # 単色画像だとJPEG圧縮で5MB未満になることがあるためノイズ画像を生成
     img = Image.effect_noise((3000, 3000), 100).convert("RGB")
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=95)
     data = buf.getvalue()
-    assert len(data) > 1024 * 1024
+    assert len(data) > 5 * 1024 * 1024
     return data
 
 
@@ -46,7 +46,7 @@ def test_meal_image_large_image_is_compressed():
         files={"file": ("big.jpg", big_data, "image/jpeg")},
     )
     assert response.status_code == 200
-    assert response.json()["size"] <= 1024 * 1024
+    assert response.json()["size"] <= 5 * 1024 * 1024
 
 
 def test_meal_image_preview_empty_file_returns_400():
@@ -74,7 +74,7 @@ def test_meal_image_preview_large_image_is_compressed(monkeypatch):
         files={"file": ("big.jpg", big_data, "image/jpeg")},
     )
     assert response.status_code == 200
-    assert response.json()["size"] <= 1024 * 1024
+    assert response.json()["size"] <= 5 * 1024 * 1024
 
 
 def test_meal_image_includes_memo(monkeypatch):
