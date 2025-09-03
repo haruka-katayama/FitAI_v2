@@ -88,7 +88,7 @@ async def ui_meal_image(
                 {
                     "ok": False,
                     "error": "File too large",
-                    "message": "ファイルサイズを5MB未満にしてください",
+                    "message": "ファイルサイズを1MB未満にしてください",
                     "request_id": request_id,
                 },
                 status_code=400,
