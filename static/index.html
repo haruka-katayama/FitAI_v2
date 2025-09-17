@@ -1354,9 +1354,7 @@
             setupMealUpload() {
                 const uploadArea = document.getElementById('upload-area');
                 const fileInput = document.getElementById('file-input');
-                const previewContainer = document.getElementById('preview-container');
-                const previewImage = document.getElementById('preview-image');
-                const uploadBtn = document.getElementById('upload-btn');
+                const memoInput = document.getElementById('meal-memo');
 
                 // ドラッグ&ドロップ
                 uploadArea.addEventListener('dragover', (e) => {
@@ -1383,12 +1381,32 @@
                         this.handleFileSelect(e.target.files[0]);
                     }
                 });
+
+                if (memoInput) {
+                    memoInput.addEventListener('input', () => {
+                        this.updateUploadButtonState();
+                    });
+                }
+
+                this.updateUploadButtonState();
             }
 
             // ファイル選択処理
             handleFileSelect(file) {
+                if (!file) {
+                    this.selectedFile = null;
+                    document.getElementById('preview-container').style.display = 'none';
+                    document.getElementById('file-input').value = '';
+                    this.updateUploadButtonState();
+                    return;
+                }
+
                 if (!file.type.startsWith('image/')) {
                     this.showStatus('meal-status', '画像ファイルを選択してください', 'error');
+                    this.selectedFile = null;
+                    document.getElementById('file-input').value = '';
+                    document.getElementById('preview-container').style.display = 'none';
+                    this.updateUploadButtonState();
                     return;
                 }
 
@@ -1398,8 +1416,8 @@
                     this.showStatus('meal-status', 'ファイルサイズを5MB未満にしてください', 'error');
                     document.getElementById('file-input').value = '';
                     document.getElementById('preview-container').style.display = 'none';
-                    document.getElementById('upload-btn').disabled = true;
                     this.selectedFile = null;
+                    this.updateUploadButtonState();
                     return;
                 }
 
@@ -1410,9 +1428,19 @@
                 reader.onload = (e) => {
                     document.getElementById('preview-image').src = e.target.result;
                     document.getElementById('preview-container').style.display = 'block';
-                    document.getElementById('upload-btn').disabled = false;
+                    this.updateUploadButtonState();
                 };
                 reader.readAsDataURL(file);
+                this.updateUploadButtonState();
+            }
+
+            updateUploadButtonState() {
+                const uploadBtn = document.getElementById('upload-btn');
+                if (!uploadBtn) return;
+                const memoInput = document.getElementById('meal-memo');
+                const memoText = memoInput ? memoInput.value.trim() : '';
+                const shouldEnable = !!this.selectedFile || memoText.length > 0;
+                uploadBtn.disabled = this.isUploading ? true : !shouldEnable;
             }
 
             // ページナビゲーション
@@ -1682,8 +1710,12 @@
                 if (this.isUploading) {
                     return;
                 }
-                if (!this.selectedFile) {
-                    this.showStatus('meal-status', '画像を選択してください', 'error');
+                const mealMemo = document.getElementById('meal-memo').value;
+                const trimmedMemo = mealMemo.trim();
+                const hasFile = !!this.selectedFile;
+
+                if (!hasFile && !trimmedMemo) {
+                    this.showStatus('meal-status', '画像またはメモを入力してください', 'error');
                     return;
                 }
 
@@ -1695,15 +1727,16 @@
                 try {
                     const mealDate = document.getElementById('meal-date').value;
                     const mealTime = document.getElementById('meal-time').value;
-                    const mealMemo = document.getElementById('meal-memo').value;
 
                     const whenISO = `${mealDate}T${mealTime}:00`;
 
-                    // FormData for file upload
+                    // FormData for upload (image or memo-only)
                     const formData = new FormData();
-                    formData.append('file', this.selectedFile);
                     formData.append('when', whenISO);
                     formData.append('memo', mealMemo);
+                    if (hasFile) {
+                        formData.append('file', this.selectedFile);
+                    }
 
                     // トークンがあればヘッダーに付与して1回だけ送信
                     const headers = this.apiToken ? { 'x-api-token': this.apiToken } : {};
@@ -1733,18 +1766,21 @@
                     }
 
                     if (result.ok) {
-                        this.showStatus('meal-status', '✅ アップロード完了', 'success');
-                        
+                        const successMessage = hasFile ? '✅ 画像を登録しました' : '✅ メモを登録しました';
+                        this.showStatus('meal-status', successMessage, 'success');
+
                         if (result.preview) {
                             const previewDiv = document.createElement('div');
                             previewDiv.className = 'coaching-result';
-                            previewDiv.innerHTML = `<h3>📝 画像要約</h3><p>${result.preview}</p>`;
+                            const previewTitle = hasFile ? '📝 画像要約' : '📝 メモ要約';
+                            previewDiv.innerHTML = `<h3>${previewTitle}</h3><p>${result.preview}</p>`;
                             document.getElementById('meal-status').appendChild(previewDiv);
                         }
 
                         // メモが入力されている場合は解析に利用したことのみ通知
-                        if (mealMemo.trim()) {
-                            this.showStatus('meal-status', '💬 メモを解析に利用しました', 'info', true);
+                        if (trimmedMemo) {
+                            const memoStatus = hasFile ? '💬 メモを解析に利用しました' : '💬 メモのみで解析しました';
+                            this.showStatus('meal-status', memoStatus, 'info', true);
                         }
 
                         // フォームリセット
@@ -1762,6 +1798,7 @@
                     this.isUploading = false;
                     uploadBtn.disabled = false;
                     uploadBtn.innerHTML = '🚀 食事を登録する';
+                    this.updateUploadButtonState();
                 }
             }
 
@@ -1783,10 +1820,11 @@
             resetMealForm() {
                 this.selectedFile = null;
                 document.getElementById('preview-container').style.display = 'none';
+                document.getElementById('preview-image').src = '';
                 document.getElementById('meal-memo').value = '';
                 document.getElementById('file-input').value = '';
-                document.getElementById('upload-btn').disabled = true;
                 this.setDefaultMealDateTime();
+                this.updateUploadButtonState();
             }
 
             // コーチキャラクター選択

@@ -113,6 +113,42 @@ def test_meal_image_includes_memo(monkeypatch):
     assert "ご飯大盛り" not in called["text"]
 
 
+def test_meal_image_memo_only(monkeypatch):
+    called = {}
+
+    async def fake_ask(prompt):
+        called["prompt"] = prompt
+        return "焼き魚定食 450kcal"
+
+    def fake_save(payload, user_id):
+        called["payload"] = payload
+        return {"ok": True, "dedup_key": "memo", "firestore": {"skipped": False}}
+
+    def fail_vision(*args, **kwargs):
+        raise AssertionError("vision API should not be called for memo-only uploads")
+
+    monkeypatch.setattr("app.routers.ui.ask_gpt", fake_ask)
+    monkeypatch.setattr("app.routers.ui.save_meal_to_stores", fake_save)
+    monkeypatch.setattr("app.routers.ui.vision_extract_meal_bytes", fail_vision)
+
+    import app.routers.ui as ui
+    monkeypatch.setattr(ui.settings, "OPENAI_API_KEY", "test", raising=False)
+
+    resp = client.post(
+        "/ui/meal_image",
+        data={"when": "2024-01-01T12:00:00", "memo": "焼き魚定食"},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["preview"] == "焼き魚定食 450kcal"
+    assert called["payload"]["source"] == "memo+gpt"
+    assert called["payload"].get("image_digest") is None
+    assert called["payload"].get("memo_digest")
+    assert called["payload"].get("file_name") is None
+
+
 def test_meal_image_saves_base64(monkeypatch):
     """有効な画像をアップロードすると圧縮データが保存される"""
     called = {}
