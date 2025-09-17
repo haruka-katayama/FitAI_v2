@@ -200,6 +200,8 @@ def create_meal_dedup_key(meal_data: Dict[str, Any], user_id: str) -> str:
     # 画像ハッシュがあれば重複判定に含める
     if meal_data.get("image_digest"):
         dedup_fields["image_digest"] = meal_data["image_digest"]
+    if meal_data.get("memo_digest"):
+        dedup_fields["memo_digest"] = meal_data["memo_digest"]
     
     key_json = json.dumps(dedup_fields, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(key_json.encode()).hexdigest()
@@ -222,7 +224,13 @@ def validate_meal_data(meal_data: Dict[str, Any]) -> Dict[str, Any]:
             errors.append("kcal must be a valid number")
 
     # 文字列型のチェック
-    str_fields = ["meal_kind", "image_digest", "notes", "image_base64"]
+    str_fields = [
+        "meal_kind",
+        "image_digest",
+        "notes",
+        "image_base64",
+        "memo_digest",
+    ]
     for field in str_fields:
         if meal_data.get(field) is not None and not isinstance(meal_data.get(field), str):
             errors.append(f"{field} must be a string")
