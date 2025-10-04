@@ -19,7 +19,7 @@ async def fitbit_exchange_code(code: str) -> dict:
         "Content-Type": "application/x-www-form-urlencoded"
     }
     data = {
-        "clientId": settings.FITBIT_CLIENT_ID, 
+        "client_id": settings.FITBIT_CLIENT_ID,
         "grant_type": "authorization_code", 
         "redirect_uri": get_redirect_uri(), 
         "code": code
